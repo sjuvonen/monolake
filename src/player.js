@@ -2,8 +2,6 @@ const { Gst } = imports.gi
 const { EventEmitter } = imports.events
 const { Timer } = imports.timer
 
-// log('PROPS: ' + Object.getOwnPropertyNames(Gst.Format))
-
 class Tags {
   constructor (tagList) {
     this.tagList = tagList
@@ -32,7 +30,7 @@ class Tags {
   }
 }
 
-const PROGRESS_INTERVAL = 500
+const PROGRESS_REPORT_INTERVAL = 250
 
 var Player = class Player {
   constructor () {
@@ -43,6 +41,8 @@ var Player = class Player {
     this.timers = {
       progress: null
     }
+
+    this._cachedLastDuration = null
   }
 
   get playing () {
@@ -56,39 +56,64 @@ var Player = class Player {
   }
 
   _init () {
-    this.backend = Gst.parse_launch('playbin name=player sink=gtksink')
+    this.backend = Gst.parse_launch('playbin name=player sink=dconfaudiosink')
+    // this.backend = Gst.ElementFactory.make('playbin', null)
 
     if (this.backend) {
       this.backend.get_bus().connect('message', this._onMessage.bind(this))
       this.backend.get_bus().add_signal_watch()
-
-      this.paused = true
     } else {
       logError(new Error('Failed to create Gst player.', 'NullPlaybinError'))
     }
+  }
+
+  lastCachedDuration () {
+    return this._cachedLastDuration
   }
 
   play (uri = null) {
     if (uri) {
       this.stop()
 
-      this.paused = false
-
-      // this.backend.set_state(Gst.State.NULL)
-      this.backend.get_bus().add_signal_watch()
       this.backend.set_property('uri', uri)
       this.backend.set_state(Gst.State.PLAYING)
 
       this.events.emit('song-changed', uri)
 
-      this.timers.progress = Timer.run(PROGRESS_INTERVAL, () => {
+      /**
+       * For some media types, as well as the first song after boot, native event
+       * Gst.MessageType.DURATION_CHANGED is not emitted, so this is our simple
+       * fallback method.
+       */
+      Timer.once(100, () => {
+        const [ok, duration] = this.backend.query_duration(Gst.Format.TIME)
+
+        if (ok) {
+          this._cachedLastDuration = Math.ceil(duration / Math.pow(10, 6))
+          this.events.emit('duration-changed', duration / Math.pow(10, 6))
+        } else {
+          this._cachedLastDuration = null
+          this.events.emit('duration-changed', null)
+        }
+      })
+
+      this.timers.progress = Timer.run(PROGRESS_REPORT_INTERVAL, () => {
         const [ok, position] = this.backend.query_position(Gst.Format.TIME)
 
         if (ok) {
-          this.events.emit('progress-changed', Math.ceil(position / Math.pow(10, 6)))
+          const msPos = Math.ceil(position / Math.pow(10, 6))
+          this.events.emit('progress-changed', msPos)
+
+          /**
+           * FIXME: Connecting to playbin::about-to-finish crashes the whole app,
+           * so we need our own workaround.
+           */
+          if (this.lastCachedDuration() - msPos < PROGRESS_REPORT_INTERVAL) {
+            this.events.emit('need-next-song')
+          }
         }
       })
-    } else if (this.paused) {
+    } else if (!this.playing) {
       /**
        * FIXME: Unpausing like that just does not work.
        */
@@ -96,13 +121,20 @@ var Player = class Player {
     }
   }
 
+  /**
+   * Prefetch for playing next song after the current one finishes.
+   */
+  setPrefetch (uri) {
+    this.backend.set_property('uri', uri)
+  }
+
   stop () {
-    this.backend.get_bus().remove_signal_watch()
-    this.backend.get_bus().remove_watch()
+    this._cachedLastDuration = null
     this.backend.set_state(Gst.State.NULL)
 
     if (this.timers.progress) {
       Timer.stop(this.timers.progress)
+      this.timers.progress = null
     }
 
     this.events.emit('playback-stopped')
@@ -112,7 +144,6 @@ var Player = class Player {
 
   pause () {
     if (this.playing) {
-      this.paused = true
       this.backend.set_state(Gst.State.PAUSED)
     }
   }
@@ -185,13 +216,13 @@ var Player = class Player {
         break
 
       default: {
-        const names = Object.getOwnPropertyNames(Gst.MessageType)
-
-        for (const name of names) {
-          if (Gst.MessageType[name] === message.type) {
-            // log(`GST '${name}' (${message.type})`)
-          }
-        }
+        // const names = Object.getOwnPropertyNames(Gst.MessageType)
+        //
+        // for (const name of names) {
+        //   if (Gst.MessageType[name] === message.type) {
+        //     log(`GST '${name}' (${message.type})`)
+        //   }
+        // }
       }
     }
   }

@@ -88,31 +88,31 @@ var Collection = class Collection {
     this.songs = new Array()
     this.store = new MusicManager()
 
-    Timer.once(this._load.bind(this))
+    // Timer.once(this.load.bind(this))
+    // Timer.once(() => this.load())
   }
 
-  async _load () {
+  async load () {
     const emitter = new EventEmitter()
     emitter.connect('artist-loaded', this._onArtistLoaded.bind(this))
     emitter.connect('album-loaded', this._onAlbumLoaded.bind(this))
     emitter.connect('song-loaded', this._onSongLoaded.bind(this))
 
+
     await this.store.loadArtists(emitter).then(
       (total) => log(`Loaded ${total} artists.`),
-      (error) => logError(error, 'Loading artists failed.')
-    )
+      // (error) => logError(error, 'Loading artists failed.', 'ArtistsLoadError')
+    ),
 
     await this.store.loadAlbums(emitter).then(
       (total) => log(`Loaded ${total} albums.`),
-      (error) => logError(error, 'Loading albums failed.')
-    )
+      // (error) => logError(error, 'Loading albums failed.', 'AlbumsLoadError')
+    ),
 
     await this.store.loadSongs(emitter).then(
       (total) => log(`Loaded ${total} songs.`),
-      (error) => logError(error, 'Loading songs failed.')
+      // (error) => logError(error, 'Loading songs failed.', 'SongsLoadError')
     )
-
-    log('ALL DONE')
 
     this.events.emit('ready')
   }
@@ -146,57 +146,6 @@ var Collection = class Collection {
   getSong (pos) {
     return this.songs[pos]
   }
-}
-
-function mapRowToRootModel (model, row) {
-  let [, iter] = model.get_iter_from_string(`${row}`)
-
-  while (true) {
-    let childModel = null
-
-    if (model instanceof Gtk.TreeModelSort) {
-      childModel = model.model
-    } else if (model instanceof Gtk.TreeModelFilter) {
-      childModel = model.child_model
-    }
-
-    if (childModel) {
-      iter = model.convert_iter_to_child_iter(iter)
-      model = childModel
-    } else {
-      break
-    }
-  }
-
-  const path = model.get_path(iter)
-  const sourceRow = parseInt(path.to_string())
-
-  return sourceRow
-}
-
-function mapPathToRootModel (model, path) {
-  let [, iter] = model.get_iter(path)
-
-  while (true) {
-    let childModel = null
-
-    if (model instanceof Gtk.TreeModelSort) {
-      childModel = model.model
-    } else if (model instanceof Gtk.TreeModelFilter) {
-      childModel = model.child_model
-    }
-
-    if (childModel) {
-      iter = model.convert_iter_to_child_iter(iter)
-      model = childModel
-    } else {
-      break
-    }
-  }
-
-  const sourcePath = model.get_path(iter)
-
-  return sourcePath
 }
 
 const collectionColumns = [
@@ -372,8 +321,6 @@ var Queue = class Queue {
   constructor () {
     this.events = new EventEmitter()
     this.songs = []
-
-    // Timer.once(1000, () => this.add(null))
   }
 
   add (song) {
@@ -381,7 +328,12 @@ var Queue = class Queue {
     this.events.emit('song-added', song)
   }
 
-  get (pos) {
+  clear () {
+    this.events.emit('cleared')
+    this.songs = []
+  }
+
+  getSong (pos) {
     return this.songs[pos]
   }
 }
@@ -401,6 +353,13 @@ var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
 
     this.queue = queue
     this.queue.events.connect('song-added', this._onSongAdded.bind(this))
+    this.queue.events.connect('cleared', () => this.clear())
+
+    this.connect('row-deleted', this._onRowDeleted.bind(this))
+  }
+
+  _onRowDeleted (sender, path) {
+    this.queue.songs.splice(path.to_string(), 1)
   }
 
   _onSongAdded (emitter, song) {
@@ -418,6 +377,6 @@ var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
     this.set_value(iter, 0, song.title)
     this.set_value(iter, 1, song.artistName)
     this.set_value(iter, 2, song.albumTitle)
-    this.set_value(iter, 3, `${title}\r<small>${artist} – ${album}</small>`)
+    this.set_value(iter, 3, `${title}\r<small>${artist} • ${album}</small>`)
   }
 })

@@ -1,4 +1,4 @@
-const { Gio, Gst, Gtk } = imports.gi
+const { Gio, GObject, Gst, Gtk } = imports.gi
 const { MainWindow } = imports.window
 const { Player } = imports.player
 
@@ -14,7 +14,7 @@ function openPreferencesDialog () {
 
 function main (argv) {
   Gtk.init(null)
-  Gst.init_check(null)
+  Gst.init(null)
 
   const application = new Gtk.Application({
     application_id: 'fi.juvonet.Monolake',
@@ -49,9 +49,13 @@ function main (argv) {
     appWindow.present()
 
     const window = new MainWindow(appWindow, builder, player)
+    window.setup()
 
     appWindow.connect('destroy', () => player.stop())
     appWindow.connect('destroy', () => application.quit())
+
+    // Prevents garbage collection from destroying our app ;)
+    application.antiGcWindowRef = window
   })
 
   return application.run(argv)

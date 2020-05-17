@@ -20,7 +20,7 @@ function scrollCursor (dataType, emitter, cursor) {
       } catch (error) {
         cursor.close()
 
-        return reject(error)
+        return reject(new Error(`Loading ${dataType} failed.`, error))
       }
     }
 
@@ -62,10 +62,7 @@ class Provider {
         try {
           const cursor = connection.query_finish(result)
 
-          scrollCursor(this.name, emitter, cursor).then((total) => {
-            resolve(total)
-          })
-          // scrollCursor(emitter, cursor, this.name).then(resolve, reject)
+          scrollCursor(this.name, emitter, cursor).then(resolve, reject)
         } catch (error) {
           reject(error)
         }
