@@ -7,12 +7,6 @@ class Tags {
     this.tagList = tagList
   }
 
-  // isSame (otherTagList) {
-  //   return ['title', 'artist', 'album', 'genre'].every(
-  //     field => this.tagList.get_string(f) === otherTagList.get_string(field)
-  //   )
-  // }
-
   get title () {
     return this.tagList.get_string('title')[1]
   }
@@ -30,7 +24,7 @@ class Tags {
   }
 }
 
-const PROGRESS_REPORT_INTERVAL = 250
+const PROGRESS_REPORT_INTERVAL = 550
 
 var Player = class Player {
   constructor () {
@@ -43,6 +37,7 @@ var Player = class Player {
     }
 
     this._cachedLastDuration = null
+    this._queuedPath = null
   }
 
   get playing () {
@@ -72,6 +67,8 @@ var Player = class Player {
   }
 
   play (uri = null) {
+    this._queuedPath = null
+
     if (uri) {
       this.stop()
 
@@ -125,7 +122,11 @@ var Player = class Player {
    * Prefetch for playing next song after the current one finishes.
    */
   setPrefetch (uri) {
-    this.backend.set_property('uri', uri)
+    /**
+     * Recommended way of calling playbin.set_uri() does not do anything, hence
+     * using our own fallback solution.
+     */
+    this._queuedPath = uri
   }
 
   stop () {
@@ -168,8 +169,12 @@ var Player = class Player {
       }
 
       case Gst.MessageType.EOS:
-        log('PLAYBACK STOPPED')
-        this.stop()
+        if (this._queuedPath) {
+          // this.stop()
+          this.play(this._queuedPath)
+        } else {
+          this.stop()
+        }
         break
 
       case Gst.MessageType.WARNING: {
@@ -203,7 +208,8 @@ var Player = class Player {
           const [ok, duration] = this.backend.query_duration(Gst.Format.TIME)
 
           if (ok) {
-            this.events.emit('duration-changed', duration / Math.pow(10, 6))
+            this._cachedLastDuration = duration / Math.pow(10, 6)
+            this.events.emit('duration-changed', this._cachedLastDuration)
           } else {
             this.events.emit('duration-changed', null)
           }

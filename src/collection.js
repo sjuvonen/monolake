@@ -2,6 +2,7 @@ const { GLib, GObject, Gtk } = imports.gi
 const { MusicManager } = imports.store
 const { EventEmitter } = imports.events
 const { Timer } = imports.timer
+const { mapPathToRootModel } = imports.utils
 
 var Sorting = {
   Standard: 'standard',
@@ -69,10 +70,9 @@ function readSong (cursor) {
   song.path = cursor.get_string(0)[0]
   song.artist = cursor.get_string(1)[0]
   song.album = cursor.get_string(2)[0]
-  song.disc = cursor.get_string(3)
+  song.discNumber = cursor.get_integer(3)
   song.title = cursor.get_string(4)[0]
   song.trackNumber = cursor.get_integer(5)
-  song.genre = cursor.get_string(6)[0]
 
   return song
 }
@@ -88,8 +88,8 @@ var Collection = class Collection {
     this.songs = new Array()
     this.store = new MusicManager()
 
-    // Timer.once(this.load.bind(this))
-    // Timer.once(() => this.load())
+    this.counter = 1
+    this.songsMap = new Map()
   }
 
   async load () {
@@ -97,7 +97,6 @@ var Collection = class Collection {
     emitter.connect('artist-loaded', this._onArtistLoaded.bind(this))
     emitter.connect('album-loaded', this._onAlbumLoaded.bind(this))
     emitter.connect('song-loaded', this._onSongLoaded.bind(this))
-
 
     await this.store.loadArtists(emitter).then(
       (total) => log(`Loaded ${total} artists.`),
@@ -136,19 +135,27 @@ var Collection = class Collection {
   _onSongLoaded (sender, cursor) {
     const song = readSong(cursor)
 
+    song.id = this.counter++
     song.artistRef = this.artistsMap.get(song.artist)
     song.albumRef = this.albumsMap.get(song.album)
 
     this.songs.push(song)
+    this.songsMap.set(song.id, song)
+
     this.events.emit('song-added', song)
   }
 
-  getSong (pos) {
+  getSongFromPos (pos) {
     return this.songs[pos]
+  }
+
+  getSong (sid) {
+    return this.songsMap.get(sid)
   }
 }
 
 const collectionColumns = [
+  { label: 'ID', field: 'id', type: GObject.TYPE_UINT },
   { label: 'Track', field: 'trackNumber', type: GObject.TYPE_UINT },
   { label: 'Title', field: 'title', type: GObject.TYPE_STRING },
   { label: 'Artist', field: 'artistName', type: GObject.TYPE_STRING },
@@ -205,19 +212,6 @@ var CollectionFilterModel = GObject.registerClass(class CollectionFilterModel ex
     }
   }
 
-  getSong (pos) {
-    try {
-      const [, iter] = this.get_iter_from_string(`${pos}`)
-      const childIter = this.convert_iter_to_child_iter(iter)
-      const childPath = this.child_model.get_path(childIter)
-      const childPos = parseInt(childPath.to_string())
-
-      return this.child_model.getSong(childPos)
-    } catch (error) {
-      logError(error, 'MappingError')
-    }
-  }
-
   _onModelFilter (model, iter) {
     if (this.filterText === null) {
       return true
@@ -226,10 +220,6 @@ var CollectionFilterModel = GObject.registerClass(class CollectionFilterModel ex
     for (const [i, column] of collectionColumns.entries()) {
       if (column.type === GObject.TYPE_STRING) {
         const value = this.child_model.get_value(iter, i)
-
-        // if (value.includes(this.filterText)) {
-        //   return true
-        // }
 
         if (value !== null && this.filterRegExp.test(value)) {
           return true
@@ -269,7 +259,7 @@ function compareByColumns (model, columns, first, second) {
 }
 
 function sortingStandard (model, a, b) {
-  return compareByColumns(model, [2, 3, 4, 0], a, b)
+  return compareByColumns(model, [3, 4, 5, 1], a, b)
 }
 
 function sortingRandom (model, a, b) {
@@ -338,6 +328,12 @@ var Queue = class Queue {
   }
 }
 
+const QueueRoles = {
+  Label: 0,
+  Background: 1,
+  FontWeight: 2
+}
+
 var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
   _init (options) {
     const { queue, ...modelOptions } = options
@@ -347,36 +343,43 @@ var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
     this.set_column_types([
       GObject.TYPE_STRING,
       GObject.TYPE_STRING,
-      GObject.TYPE_STRING,
-      GObject.TYPE_STRING
+      GObject.TYPE_UINT,
     ])
+
+    this._activeRow = null
 
     this.queue = queue
     this.queue.events.connect('song-added', this._onSongAdded.bind(this))
     this.queue.events.connect('cleared', () => this.clear())
-
-    this.connect('row-deleted', this._onRowDeleted.bind(this))
   }
 
-  _onRowDeleted (sender, path) {
+  remove (iter) {
+    if (iter === this._activeRow) {
+      this._activeRow = null
+    }
+
+    const path = mapPathToRootModel(this, this.get_path(iter))
     this.queue.songs.splice(path.to_string(), 1)
+
+    return super.remove(iter)
+  }
+
+  setActiveRow (iter) {
+    if (this._activeRow) {
+      this.set_value(this._activeRow, QueueRoles.FontWeight, null)
+    }
+
+    this._activeRow = iter
+    this.set_value(iter, QueueRoles.FontWeight, 900)
   }
 
   _onSongAdded (emitter, song) {
-    // song = {
-    //   title: 'Nessaja (Flip & Fill Mix)',
-    //   artistName: 'Scooter',
-    //   albumTitle: '24 Carat Gold'
-    // }
-
     const title = GLib.markup_escape_text(song.title, -1)
-    const artist = GLib.markup_escape_text(song.artistName, -1)
-    const album = GLib.markup_escape_text(song.albumTitle, -1)
+    const artist = GLib.markup_escape_text(song.artistName || '', -1)
+    const album = GLib.markup_escape_text(song.albumTitle || '', -1)
 
     const iter = this.append()
-    this.set_value(iter, 0, song.title)
-    this.set_value(iter, 1, song.artistName)
-    this.set_value(iter, 2, song.albumTitle)
-    this.set_value(iter, 3, `${title}\r<small>${artist} • ${album}</small>`)
+
+    this.set_value(iter, QueueRoles.Label, `${title}\r<small>${artist} • ${album}</small>`)
   }
 })

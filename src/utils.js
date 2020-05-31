@@ -8,7 +8,9 @@ function formatProgressTime (stamp) {
 }
 
 function mapPathToRootModel (model, path) {
-  let [, iter] = model.get_iter(path)
+  let [, iter] = typeof path === 'string'
+    ? model.get_iter_from_string(path)
+    : model.get_iter(path)
 
   while (true) {
     let childModel = null

@@ -56,6 +56,7 @@
     <property name="default_width">1400</property>
     <property name="default_height">800</property>
     <property name="icon_name">emblem-music-symbolic</property>
+    <property name="gravity">north-east</property>
     <property name="has_resize_grip">True</property>
     <property name="startup_id">fi.juvonet.Monolake</property>
     <child>
@@ -268,9 +269,9 @@
                     </child>
                     <child>
                       <object class="GtkTreeViewColumn">
-                        <property name="resizable">True</property>
                         <property name="sizing">fixed</property>
-                        <property name="title" translatable="yes">Track</property>
+                        <property name="fixed_width">50</property>
+                        <property name="title" translatable="yes">ID</property>
                         <child>
                           <object class="GtkCellRendererText"/>
                           <attributes>
@@ -283,7 +284,7 @@
                       <object class="GtkTreeViewColumn">
                         <property name="resizable">True</property>
                         <property name="sizing">fixed</property>
-                        <property name="title" translatable="yes">Title</property>
+                        <property name="title" translatable="yes">Track</property>
                         <child>
                           <object class="GtkCellRendererText"/>
                           <attributes>
@@ -296,7 +297,7 @@
                       <object class="GtkTreeViewColumn">
                         <property name="resizable">True</property>
                         <property name="sizing">fixed</property>
-                        <property name="title" translatable="yes">Artist</property>
+                        <property name="title" translatable="yes">Title</property>
                         <child>
                           <object class="GtkCellRendererText"/>
                           <attributes>
@@ -309,7 +310,7 @@
                       <object class="GtkTreeViewColumn">
                         <property name="resizable">True</property>
                         <property name="sizing">fixed</property>
-                        <property name="title" translatable="yes">Album</property>
+                        <property name="title" translatable="yes">Artist</property>
                         <child>
                           <object class="GtkCellRendererText"/>
                           <attributes>
@@ -322,7 +323,7 @@
                       <object class="GtkTreeViewColumn">
                         <property name="resizable">True</property>
                         <property name="sizing">fixed</property>
-                        <property name="title" translatable="yes">Disc</property>
+                        <property name="title" translatable="yes">Album</property>
                         <child>
                           <object class="GtkCellRendererText"/>
                           <attributes>
@@ -335,7 +336,7 @@
                       <object class="GtkTreeViewColumn">
                         <property name="resizable">True</property>
                         <property name="sizing">fixed</property>
-                        <property name="title" translatable="yes">Genre</property>
+                        <property name="title" translatable="yes">Disc</property>
                         <child>
                           <object class="GtkCellRendererText"/>
                           <attributes>
@@ -346,13 +347,28 @@
                     </child>
                     <child>
                       <object class="GtkTreeViewColumn">
+                        <property name="visible">False</property>
+                        <property name="resizable">True</property>
+                        <property name="sizing">fixed</property>
+                        <property name="title" translatable="yes">Genre</property>
+                        <child>
+                          <object class="GtkCellRendererText"/>
+                          <attributes>
+                            <attribute name="text">6</attribute>
+                          </attributes>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkTreeViewColumn">
+                        <property name="visible">False</property>
                         <property name="resizable">True</property>
                         <property name="sizing">fixed</property>
                         <property name="title" translatable="yes">Path</property>
                         <child>
                           <object class="GtkCellRendererText"/>
                           <attributes>
-                            <attribute name="text">6</attribute>
+                            <attribute name="text">7</attribute>
                           </attributes>
                         </child>
                       </object>
@@ -408,13 +424,18 @@
                                     <property name="icon_name">media-optical-symbolic</property>
                                     <property name="stock_size">3</property>
                                   </object>
+                                  <attributes>
+                                    <attribute name="cell-background">1</attribute>
+                                  </attributes>
                                 </child>
                                 <child>
                                   <object class="GtkCellRendererText">
                                     <property name="ellipsize">end</property>
                                   </object>
                                   <attributes>
-                                    <attribute name="markup">3</attribute>
+                                    <attribute name="cell-background">1</attribute>
+                                    <attribute name="markup">0</attribute>
+                                    <attribute name="weight">2</attribute>
                                   </attributes>
                                 </child>
                               </object>
@@ -814,6 +835,9 @@
                     <property name="icon_name">media-playlist-repeat-symbolic</property>
                   </object>
                 </child>
+                <style>
+                  <class name="image-button"/>
+                </style>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -833,6 +857,9 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">media-playlist-shuffle</property>
+                    <style>
+                      <class name="image-button"/>
+                    </style>
                   </object>
                 </child>
               </object>
@@ -842,6 +869,9 @@
                 <property name="position">1</property>
               </packing>
             </child>
+            <style>
+              <class name="linked"/>
+            </style>
           </object>
           <packing>
             <property name="position">4</property>

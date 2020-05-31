@@ -43,8 +43,6 @@ var MainWindow = class MainWindow {
     this.ui.queueView.set_model(null)
     this.ui.queueView.set_model(this.queueModel)
 
-    this.queueWatcher = new SongQueueWatcher(this.player, this.queueModel, this.collectionModel)
-
     /**
      * BUG: Glade allows to define this but it actually has no effect.
      */
@@ -76,6 +74,11 @@ var MainWindow = class MainWindow {
         })
 
         this.ui.collectionView.set_model(this.filterModel)
+
+        const queue = new QueueProvider(this.queueModel, this.queueModel.queue)
+        const collection = new CollectionProvider(this.filterModel, this.collection)
+
+        this.playlistManager = new PlaylistManager(this.player, queue, collection)
       },
       () => log('NOOOOOO')
     )
@@ -115,10 +118,15 @@ var MainWindow = class MainWindow {
   }
 
   onCollectionRowActivated (view, path, column) {
-    const row = utils.mapPathToRootModel(view.model, path).to_string()
-    const song = this.collection.getSong(row)
+    const [ok, iter] = view.model.get_iter(path)
 
-    this.player.play(song.path)
+    if (ok) {
+      const sid = view.model.get_value(iter, 0)
+      const song = this.collection.getSong(sid)
+      this.player.play(song.path)
+
+      this.playlistManager.collection.select(iter)
+    }
   }
 
   onQueueRowActivated (view, path, column) {
@@ -141,7 +149,7 @@ var MainWindow = class MainWindow {
   }
 
   onClickPlayNext (button) {
-    this.queueWatcher.next(true)
+    this.playlistManager.next(true)
   }
 
   _onPlaybackStarted () {
@@ -187,25 +195,6 @@ var MainWindow = class MainWindow {
 
   onClickTogglePlaylistSidebar (button) {
     this.ui.revealerRightSidebar.set_reveal_child(button.get_active())
-
-    /**
-     * This hack is to avoid "Negative content width" warnings from GtkScrolledWindow
-     * in console whenever the widget is hidden. This hack leaks one complaint
-     * when the sidebar is being folded, but without it the widget would trigger
-     * errors repeatedly.
-     *
-     * https://gitlab.gnome.org/GNOME/gtk/issues/1057
-     *
-     * NOTE: Seems to occur only when the revealer is not using any effect for
-     * transitioning between states.
-     */
-    // if (button.get_active()) {
-    //   this.ui.scrollerInsideRightSidebar.set_visible(true)
-    // } else {
-    //   Timer.once(this.ui.revealerRightSidebar.get_transition_duration(), () => {
-    //     this.ui.scrollerInsideRightSidebar.set_visible(false)
-    //   })
-    // }
   }
 
   onSearchChanged (input) {
@@ -233,10 +222,14 @@ var MainWindow = class MainWindow {
     const [paths, model] = this.ui.collectionView.get_selection().get_selected_rows()
 
     for (const path of paths) {
-      const pos = utils.mapPathToRootModel(model, path).to_string()
-      const song = this.collection.getSong(pos)
+      const [ok, iter] = this.ui.collectionView.model.get_iter(path)
 
-      this.queue.add(song)
+      if (ok) {
+        const sid = this.ui.collectionView.model.get_value(iter, 0)
+        const song = this.collection.getSong(sid)
+
+        this.queue.add(song)
+      }
     }
   }
 
@@ -245,37 +238,111 @@ var MainWindow = class MainWindow {
   }
 }
 
-class SongQueueWatcher {
-  /**
-   * @param queue QueueModel
-   * @param collection CollectionModel
-   */
-  constructor (player, queueModel, collectionModel) {
-    Object.assign(this, { player, queueModel, collectionModel })
+class PlaylistManager {
+  constructor (player, queue, collection) {
+    Object.assign(this, { player, queue, collection })
 
     this.player.events.connect('need-next-song', this._onNeedNextSong.bind(this))
   }
 
   next (startPlayback = false) {
-    if (this.queueModel.iter_n_children(null)) {
-      const [ok, iter] = this.queueModel.get_iter_first()
-      const path = this.queueModel.get_path(iter)
-      const pos = utils.mapPathToRootModel(this.queueModel, path).to_string()
-      const song = this.queueModel.queue.getSong(pos)
+    let song = null
 
-      this.queueModel.remove(iter)
+    if (this.queue.hasNext()) {
+      const iter = this.queue.select(this.queue.getNext())
+      song = this.queue.getSong(iter)
+    } else if (this.collection.hasNext()) {
+      this.queue.getNext()
 
-      if (startPlayback) {
-        this.player.play(song.path)
-      } else {
-        this.player.setPrefetch(song.path)
-      }
+      const iter = this.collection.select(this.collection.getNext())
+      song = this.collection.getSong(iter)
+    }
+
+    if (startPlayback) {
+      this.player.play(song.path)
     } else {
-      log('FETCH FROM COLLECTION')
+      this.player.setPrefetch(song.path)
     }
   }
 
   _onNeedNextSong () {
     this.next()
+  }
+}
+
+class QueueProvider {
+  constructor (model, queue) {
+    this.model = model
+    this.queue = queue
+    this.current = null
+  }
+
+  hasNext () {
+    const cap = this.current ? 1 : 0
+    return this.model.iter_n_children(null) > cap
+  }
+
+  getNext () {
+    if (this.current) {
+      this.model.remove(this.current)
+    }
+
+    const [ok, iter] =  this.model.get_iter_first()
+
+    this.current = ok ? iter : null
+
+    return this.current
+  }
+
+  getSong (iter) {
+    const path = this.model.get_path(iter)
+    const pos = utils.mapPathToRootModel(this.model, path).to_string()
+
+    return this.queue.getSong(pos)
+  }
+
+  select (iter) {
+    return iter
+  }
+}
+
+class CollectionProvider {
+  constructor (model, collection) {
+    this.model = model
+    this.collection = collection
+    this.current = null
+  }
+
+  hasNext () {
+    return true
+  }
+
+  getNext () {
+    if (this.current) {
+      let [ok, iter] = this.model.get_iter_first()
+
+      while (ok) {
+        if (this.model.get_value(iter, 0) === this.current) {
+          return this.model.iter_next(iter) ? iter : null
+        }
+
+        ok = this.model.iter_next(iter)
+      }
+    }
+
+    return this.model.get_iter_first()[1]
+  }
+
+  getSong (iter) {
+    const sid = this.model.get_value(iter, 0)
+    const song = this.collection.getSong(sid)
+
+    return song
+  }
+
+  select (iter) {
+    this.current = this.model.get_value(iter, 0)
+
+    return iter
   }
 }

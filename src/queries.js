@@ -4,18 +4,16 @@ var Query = {
       nie:url(?song)
       ?artist
       ?album
-      ?disc
+      ?discNumber
       ?title
       ?track
-      ?genre
     WHERE {
       ?song a nmm:MusicPiece;
       nie:title ?title;
       nmm:performer ?artist;
-      nmm:musicAlbum ?album;
 
       . OPTIONAL {
-        ?song nmm:genre ?genre
+        ?song nmm:musicAlbum ?album;
       }
 
       . OPTIONAL {
@@ -23,7 +21,11 @@ var Query = {
       }
 
       . OPTIONAL {
-        ?song nmm:musicAlbumDisc ?disc;
+        ?song nmm:musicAlbumDisc ?disc
+      }
+
+      . OPTIONAL {
+        ?disc nmm:setNumber ?discNumber
       }
     }
   `,
