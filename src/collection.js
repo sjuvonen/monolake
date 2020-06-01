@@ -263,11 +263,7 @@ function sortingStandard (model, a, b) {
 }
 
 function sortingRandom (model, a, b) {
-  /**
-   * Simply returning a random value does not randomize the model very well.
-   * Probably due to the order in which Gtk processes the sorting.
-   */
-  return (Math.random() * 3 | 0) - 1
+  return Math.round(Math.random()) ? 1 : -1
 }
 
 var CollectionSortModel = GObject.registerClass(class CollectionSortModel extends Gtk.TreeModelSort {
@@ -289,21 +285,6 @@ var CollectionSortModel = GObject.registerClass(class CollectionSortModel extend
       default:
         logError(`Invalid sorting mode '${this.sortMode}'.`, 'InvalidSortingError')
     }
-  }
-
-  _compareByColumns (columns, first, second) {
-    for (const i of columns) {
-      const a = this.model.get_value(first, i) || ''
-      const b = this.model.get_value(second, i) || ''
-
-      let delta = compare(collectionColumns[i].type, a, b)
-
-      if (delta) {
-        return delta
-      }
-    }
-
-    return 0
   }
 })
 

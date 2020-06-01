@@ -1,8 +1,9 @@
 #!env gjs
 
-const { Gio, GObject, Gtk } = imports.gi
+const { Gdk, Gio, GObject, Gtk } = imports.gi
 const { Collection, CollectionFilterModel, CollectionModel, CollectionSortModel } = imports.collection
 const { Queue, QueueModel } = imports.collection
+const { CollectionCellRenderer } = imports.renderers
 const { Timer } = imports.timer
 const utils = imports.utils
 
@@ -40,20 +41,21 @@ var MainWindow = class MainWindow {
     this.queue = new Queue()
     this.queueModel = new QueueModel({ queue: this.queue })
 
-    this.ui.queueView.set_model(null)
     this.ui.queueView.set_model(this.queueModel)
 
     /**
      * BUG: Glade allows to define this but it actually has no effect.
      */
-    this.ui.collectionView.set_search_column(-1)
+    // this.ui.collectionView.set_search_column(-1)
     this.ui.collectionView.get_selection().set_mode(Gtk.SelectionMode.MULTIPLE)
+    this.ui.collectionView.set_property('enable-search', false)
 
     this.player.events.connect('metadata-changed', this._onMetadataChanged.bind(this))
     this.player.events.connect('playback-started', this._onPlaybackStarted.bind(this))
     this.player.events.connect('playback-stopped', this._onPlaybackStopped.bind(this))
     this.player.events.connect('duration-changed', this._onDurationChanged.bind(this))
     this.player.events.connect('progress-changed', this._onProgressChanged.bind(this))
+    this.player.events.connect('song-changed', this._onSongChanged.bind(this))
 
     const menu = new Gio.Menu()
     menu.append('Preferences', 'app.preferences')
@@ -62,39 +64,41 @@ var MainWindow = class MainWindow {
     this.ui.buttonAppMenu.set_menu_model(menu)
   }
 
-  setup () {
-    this.collection.load().then(
-      () => {
-        this.sortModel = new CollectionSortModel({
-          model: this.collectionModel
-        })
+  async setup () {
+    await this.collection.load()
 
-        this.filterModel = new CollectionFilterModel({
-          child_model: this.sortModel
-        })
+    this.sortModel = new CollectionSortModel({
+      model: this.collectionModel
+    })
 
-        this.ui.collectionView.set_model(this.filterModel)
+    this.filterModel = new CollectionFilterModel({
+      child_model: this.sortModel
+    })
 
-        const queue = new QueueProvider(this.queueModel, this.queueModel.queue)
-        const collection = new CollectionProvider(this.filterModel, this.collection)
+    const queue = new QueueProvider(this.queueModel, this.queueModel.queue)
+    const collection = new CollectionProvider(this.filterModel, this.collection)
 
-        this.playlistManager = new PlaylistManager(this.player, queue, collection)
-      },
-      () => log('NOOOOOO')
+    this.playlistManager = new PlaylistManager(this.player, queue, collection)
+
+    const cellRenderer = new CollectionCellRenderer(
+      this.playlistManager.collection,
+      this.ui.collectionView
     )
 
-    this.collection.events.connect('ready', () => {
-      log('Got ready event')
-    //   this.sortModel = new CollectionSortModel({
-    //     model: this.collectionModel
-    //   })
-    //
-    //   this.filterModel = new CollectionFilterModel({
-    //     child_model: this.sortModel
-    //   })
-    //
-    //   this.ui.collectionView.set_model(this.filterModel)
-    })
+    const cellRendererFunc = cellRenderer.render.bind(cellRenderer)
+
+    for (const treeColumn of this.ui.collectionView.get_columns()) {
+      for (const renderer of treeColumn.get_cells()) {
+        treeColumn.set_cell_data_func(renderer, cellRendererFunc)
+      }
+    }
+
+    this.ui.collectionView.set_model(this.filterModel)
+
+    /**
+     * Avoid garbage collection.
+     */
+    this.collectionCellRenderer = cellRenderer
   }
 
   bindSignals () {
@@ -218,6 +222,10 @@ var MainWindow = class MainWindow {
     this.sortModel.sortBy(sortMode)
   }
 
+  _onSongChanged () {
+    this.ui.collectionView.queue_draw()
+  }
+
   addSelectedSongsToQueue () {
     const [paths, model] = this.ui.collectionView.get_selection().get_selected_rows()
 
@@ -319,14 +327,11 @@ class CollectionProvider {
 
   getNext () {
     if (this.current) {
-      let [ok, iter] = this.model.get_iter_first()
+      const current = parseInt(this.current.get_path().to_string())
+      const [ok, iter] = this.model.get_iter_from_string(`${current + 1}`)
 
-      while (ok) {
-        if (this.model.get_value(iter, 0) === this.current) {
-          return this.model.iter_next(iter) ? iter : null
-        }
-
-        ok = this.model.iter_next(iter)
+      if (ok) {
+        return iter
       }
     }
 
@@ -341,7 +346,8 @@ class CollectionProvider {
   }
 
   select (iter) {
-    this.current = this.model.get_value(iter, 0)
+    const path = this.model.get_path(iter)
+    this.current = new Gtk.TreeRowReference(this.model, path)
 
     return iter
   }

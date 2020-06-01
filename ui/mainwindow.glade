@@ -269,6 +269,7 @@
                     </child>
                     <child>
                       <object class="GtkTreeViewColumn">
+                        <property name="visible">False</property>
                         <property name="sizing">fixed</property>
                         <property name="fixed_width">50</property>
                         <property name="title" translatable="yes">ID</property>
