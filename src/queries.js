@@ -7,13 +7,15 @@ var Query = {
       ?discNumber
       ?title
       ?track
+      ?genre
+      ?duration
+      ?tags
     WHERE {
       ?song a nmm:MusicPiece;
       nie:title ?title;
-      nmm:performer ?artist;
 
       . OPTIONAL {
-        ?song nmm:musicAlbum ?album;
+        ?song nmm:performer ?artist;
       }
 
       . OPTIONAL {
@@ -21,7 +23,23 @@ var Query = {
       }
 
       . OPTIONAL {
+        ?song nmm:musicAlbum ?album
+      }
+
+      . OPTIONAL {
         ?song nmm:musicAlbumDisc ?disc
+      }
+
+      . OPTIONAL {
+        ?song nfo:genre ?genre
+      }
+
+      . OPTIONAL {
+        ?song nao:hasTag ?tags
+      }
+
+      . OPTIONAL {
+        ?song nfo:duration ?duration
       }
 
       . OPTIONAL {
@@ -31,5 +49,17 @@ var Query = {
   `,
 
   AllArtists: `SELECT ?artist ?name WHERE { ?artist a nmm:Artist; nmm:artistName ?name }`,
-  AllAlbums: `SELECT ?album ?name WHERE { ?album a nmm:MusicAlbum; nie:title ?name }`
+  AllAlbums: `
+    SELECT
+      ?album
+      ?name
+      ?trackCount
+    WHERE {
+      ?album a nmm:MusicAlbum;
+      nie:title ?name;
+
+      . OPTIONAL {
+        ?album nmm:albumTrackCount ?trackCount
+      }
+    }`
 }

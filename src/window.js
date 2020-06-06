@@ -133,6 +133,11 @@ var MainWindow = class MainWindow {
     }
   }
 
+  onCollectionViewResized (view, size) {
+    const GENRE = 6
+    view.get_column(GENRE).set_property('visible', size.width > 750)
+  }
+
   onQueueRowActivated (view, path, column) {
     const row = utils.mapPathToRootModel(view.model, path).to_string()
     const song = this.queue.getSong(row)

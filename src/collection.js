@@ -2,7 +2,7 @@ const { GLib, GObject, Gtk } = imports.gi
 const { MusicManager } = imports.store
 const { EventEmitter } = imports.events
 const { Timer } = imports.timer
-const { mapPathToRootModel } = imports.utils
+const { formatProgressTime, mapPathToRootModel } = imports.utils
 
 var Sorting = {
   Standard: 'standard',
@@ -45,6 +45,10 @@ class Song {
   get artistName () {
     return this.artistRef ? this.artistRef.name : null
   }
+
+  get albumTrackCount () {
+    return this.albumRef ? this.albumRef.trackCount : null
+  }
 }
 
 function readArtist (cursor) {
@@ -61,18 +65,27 @@ function readAlbum (cursor) {
 
   album.id = cursor.get_string(0)[0]
   album.title = cursor.get_string(1)[0]
+  album.trackCount = cursor.get_integer(2)
 
   return album
 }
 
 function readSong (cursor) {
   const song = new Song()
+  const tags = cursor.get_string(8)
+
   song.path = cursor.get_string(0)[0]
   song.artist = cursor.get_string(1)[0]
   song.album = cursor.get_string(2)[0]
   song.discNumber = cursor.get_integer(3)
   song.title = cursor.get_string(4)[0]
   song.trackNumber = cursor.get_integer(5)
+  song.genre = cursor.get_string(6)[0]
+  song.duration = cursor.get_integer(7)
+  song.loved = tags.includes('http://www.semanticdesktop.org/ontologies/2007/08/15/nao#predefined-tag-favorite')
+
+  // song.rating = Math.round(Math.random() * 5)
+  song.rating = song.loved ? 5 : 0
 
   return song
 }
@@ -165,7 +178,7 @@ const collectionColumns = [
   { label: 'Path', field: 'path', type: GObject.TYPE_STRING },
 ]
 
-var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.ListStore {
+var LegacyCollectionModel = GObject.registerClass(class LegacyCollectionModel extends Gtk.ListStore {
   _init (options) {
     const { collection, ...modelOptions } = options
 
@@ -190,6 +203,60 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
         this.set_value(iter, i, song[column.field])
       }
     }
+  }
+})
+
+const CollectionRoles = {
+  Id: 0,
+  Title: 1,
+  Artist: 2,
+  Number: 3,
+  Duration: 4,
+  Rating: 5,
+  Genre: 6,
+  Path: 7,
+}
+
+var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.ListStore {
+  _init (options) {
+    const { collection, ...modelOptions } = options
+
+    super._init(modelOptions)
+
+    this.collection = collection
+    this.collection.events.connect('song-added', this._onItemAdded.bind(this))
+
+    this.set_column_types([
+      GObject.TYPE_UINT,
+      GObject.TYPE_STRING,
+      GObject.TYPE_STRING,
+      GObject.TYPE_STRING,
+      GObject.TYPE_STRING,
+      GObject.TYPE_STRING,
+      GObject.TYPE_STRING,
+      GObject.TYPE_STRING,
+    ])
+  }
+
+  getSong (pos) {
+    return this.collection.songs[pos]
+  }
+
+  _onItemAdded (emitter, song) {
+    const iter = this.append()
+
+    const title = GLib.markup_escape_text(song.title, -1)
+    const artist = GLib.markup_escape_text(song.artistName || '', -1)
+    const album = GLib.markup_escape_text(song.albumTitle || '', -1)
+
+    this.set_value(iter, CollectionRoles.Id, song.id)
+    this.set_value(iter, CollectionRoles.Title, song.title)
+    this.set_value(iter, CollectionRoles.Artist, [song.artistName, song.albumTitle].filter(v => !!v).join(' • '))
+    this.set_value(iter, CollectionRoles.Number, `${song.trackNumber} <span size="x-small">/ ${song.albumTrackCount || '∞'}</span>`)
+    this.set_value(iter, CollectionRoles.Duration, formatProgressTime(song.duration))
+    this.set_value(iter, CollectionRoles.Rating, ''.padStart(song.rating, '★').padEnd(5, '☆'))
+    this.set_value(iter, CollectionRoles.Genre, song.genre || '')
+    this.set_value(iter, CollectionRoles.Path, song.path)
   }
 })
 
@@ -271,7 +338,7 @@ var CollectionSortModel = GObject.registerClass(class CollectionSortModel extend
         break
 
       case Sorting.Random:
-        this.set_default_sort_func(this.sortingRandom.bind(this))
+        this.set_default_sort_func(this._sortingRandom.bind(this))
         break
 
       default:
