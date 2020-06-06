@@ -31,14 +31,23 @@ var CollectionCellRenderer = class CollectionCellRenderer {
     const delta = path.compare(this.activePath)
 
     if (delta === 0) {
-      cell.set_property('weight', 900)
-      cell.set_property('background-rgba', this.theme.bg.active)
+      const hasFontWeight = cell instanceof Gtk.CellRendererText
+      cell.set_property('cell-background-rgba', this.theme.bg.active)
+
+      if (hasFontWeight) {
+        cell.set_property('weight', 900)
+      }
 
       this.cells.add(cell)
     } else if (this.cells.size) {
       for (const cell of this.cells) {
-        cell.set_property('weight', 400)
-        cell.set_property('background-rgba', this.theme.bg.normal)
+        const hasFontWeight = cell instanceof Gtk.CellRendererText
+
+        cell.set_property('cell-background-rgba', this.theme.bg.normal)
+
+        if (hasFontWeight) {
+          cell.set_property('weight', 400)
+        }
       }
 
       this.cells.clear()
@@ -48,8 +57,14 @@ var CollectionCellRenderer = class CollectionCellRenderer {
   onViewChanged () {
     /**
      * Reading model values and setting renderer properties is really expensive,
-     * so try to minimize the need for it.
+     * so we want to minimize calling those methods.
      */
+
+    if (this.cells.size) {
+      this.needsUpdating = true
+      return
+    }
+
     try {
       const [ok, start, end] = this.view.get_visible_range()
 
