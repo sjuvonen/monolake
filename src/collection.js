@@ -231,24 +231,23 @@ var CollectionFilterModel = GObject.registerClass(class CollectionFilterModel ex
   }
 })
 
-function compare (type, a, b) {
-  switch (type) {
-    case GObject.TYPE_STRING:
-      return a.localeCompare(b, undefined, {
+function compareFields (field, first, second) {
+  switch (field) {
+    case 'discNumber':
+    case 'id':
+    case 'trackNumber':
+      return first[field] - second[field]
+
+    default:
+      return (first[field] || '').localeCompare(second[field], undefined, {
         sensitivity: 'base'
       })
-
-    case GObject.TYPE_UINT:
-      return a - b
   }
 }
 
-function compareByColumns (model, columns, first, second) {
-  for (const i of columns) {
-    const a = model.get_value(first, i) || ''
-    const b = model.get_value(second, i) || ''
-
-    let delta = compare(collectionColumns[i].type, a, b)
+function compareSongs (fields, first, second) {
+  for (const field of fields) {
+    const delta = compareFields(field, first, second)
 
     if (delta) {
       return delta
@@ -258,33 +257,39 @@ function compareByColumns (model, columns, first, second) {
   return 0
 }
 
-function sortingStandard (model, a, b) {
-  return compareByColumns(model, [3, 4, 5, 1], a, b)
-}
-
-function sortingRandom (model, a, b) {
-  return Math.round(Math.random()) ? 1 : -1
-}
-
 var CollectionSortModel = GObject.registerClass(class CollectionSortModel extends Gtk.TreeModelSort {
   _init (options) {
     super._init(options)
     this.sortBy(Sorting.Standard)
+    this.collection = options.model.collection
   }
 
   sortBy (sortMode) {
     switch (sortMode) {
       case Sorting.Standard:
-        this.set_default_sort_func(sortingStandard)
+        this.set_default_sort_func(this._sortingStandard.bind(this))
         break
 
       case Sorting.Random:
-        this.set_default_sort_func(sortingRandom)
+        this.set_default_sort_func(this.sortingRandom.bind(this))
         break
 
       default:
         logError(`Invalid sorting mode '${this.sortMode}'.`, 'InvalidSortingError')
     }
+  }
+
+  _sortingRandom () {
+    return Math.round(Math.random()) ? 1 : -1
+  }
+
+  _sortingStandard (model, a, b) {
+    const aid = model.get_value(a, 0)
+    const bid = model.get_value(b, 0)
+    const first = this.collection.getSong(aid)
+    const second = this.collection.getSong(bid)
+
+    return compareSongs(['artistName', 'albumTitle', 'discNumber', 'trackNumber'], first, second)
   }
 })
 
