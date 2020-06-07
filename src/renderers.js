@@ -16,7 +16,7 @@ var CollectionCellRenderer = class CollectionCellRenderer {
       }
     }
 
-    this.theme.bg.active.alpha = 0.3
+    this.theme.bg.active.alpha = 0.4
 
     this.view.connect('draw', this.onViewChanged.bind(this))
   }
