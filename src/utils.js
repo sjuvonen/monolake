@@ -59,3 +59,7 @@ function mapFromRootModel (model, iter) {
 function formatStars(enabledAmount, maxAmount = 5) {
   return ''.padStart(enabledAmount, '★').padEnd(maxAmount, '☆')
 }
+
+function dirName (uri) {
+  return uri.substring(0, uri.lastIndexOf('/'))
+}

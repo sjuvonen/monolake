@@ -33,5 +33,18 @@ var Query = {
       . OPTIONAL {
         ?album nmm:albumTrackCount ?trackCount
       }
-    }`
+    }`,
+
+  ImagesInFolder: `
+    SELECT
+      ?path
+      nfo:width(?image)
+      nfo:height(?image)
+    WHERE {
+      ?image a nmm:Photo
+      . ?image nie:url ?path
+
+      ; FILTER (strstarts(str(?path), "%PATH%"))
+    }
+  `
 }

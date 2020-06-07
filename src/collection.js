@@ -1,13 +1,22 @@
-const { GLib, GObject, Gtk } = imports.gi
+const { Gdk, GdkPixbuf, Gio, GLib, GObject, Gtk } = imports.gi
 const { MusicManager } = imports.store
 const { EventEmitter } = imports.events
 const { Timer } = imports.timer
-const { formatProgressTime, formatStars, mapPathToRootModel } = imports.utils
+const { dirName, formatProgressTime, formatStars, mapPathToRootModel } = imports.utils
 
 var Sorting = {
   Standard: 'standard',
   Random: 'random',
   Rating: 'rating'
+}
+
+class CoverArt {
+  constructor (uri) {
+    this.uri = uri || null
+    this.width = null
+    this.height = null
+    this.pixbuf = null
+  }
 }
 
 class Artist {
@@ -21,6 +30,8 @@ class Album {
   constructor (id) {
     this.id = id || null
     this.title = null
+    this.coverArt = null
+    this.songs = new Set()
   }
 }
 
@@ -36,6 +47,22 @@ class Song {
 
     this.artistRef = null
     this.albumRef = null
+  }
+
+  get coverArt () {
+    if (this.albumRef && this.albumRef.coverArt) {
+      return this.albumRef.coverArt.uri
+    } else {
+      return null
+    }
+  }
+
+  get coverArtPixbuf () {
+    if (this.albumRef && this.albumRef.coverArt) {
+      return this.albumRef.coverArt.pixbuf
+    } else {
+      return null
+    }
   }
 
   get albumTitle () {
@@ -113,6 +140,13 @@ var Collection = class Collection {
 
     this.counter = 1
     this.songsMap = new Map()
+
+    this.covers = new Set()
+    this.dirs = new Set()
+    this.albumsPaths = new Map()
+
+    this.events.connect('song-added', this._onSongAdded.bind(this))
+    this.events.connect('cover-art-added', this._onCoverArtAdded.bind(this))
   }
 
   async load () {
@@ -120,6 +154,7 @@ var Collection = class Collection {
     emitter.connect('artist-loaded', this._onArtistLoaded.bind(this))
     emitter.connect('album-loaded', this._onAlbumLoaded.bind(this))
     emitter.connect('song-loaded', this._onSongLoaded.bind(this))
+    emitter.connect('cover-art-loaded', this._onCoverArtLoaded.bind(this))
 
     await this.store.loadArtists(emitter).then(
       (total) => log(`Loaded ${total} artists.`),
@@ -134,6 +169,10 @@ var Collection = class Collection {
     await this.store.loadSongs(emitter).then(
       (total) => log(`Loaded ${total} songs.`),
       // (error) => logError(error, 'Loading songs failed.', 'SongsLoadError')
+    )
+
+    await this.store.loadCoverArt(emitter, this.dirs).then(
+      (total) => log(`Loaded ${total} covers.`)
     )
 
     this.events.emit('ready')
@@ -165,7 +204,61 @@ var Collection = class Collection {
     this.songs.push(song)
     this.songsMap.set(song.id, song)
 
+    if (song.albumRef) {
+      song.albumRef.songs.add(song)
+    }
+
     this.events.emit('song-added', song)
+  }
+
+  _onCoverArtLoaded (sender, cursor) {
+    const uri = cursor.get_string(0)[0]
+    const width = cursor.get_integer(1)
+    const height = cursor.get_integer(2)
+
+    if (Math.max(width, height) / Math.min(width, height) < 1.05) {
+      const coverArt = new CoverArt(uri)
+      coverArt.width = width
+      coverArt.height = height
+
+      this.covers.add(coverArt)
+      this.events.emit('cover-art-added', coverArt)
+    }
+  }
+
+  _onSongAdded (emitter, song) {
+    const dir = dirName(song.path)
+
+    this.dirs.add(dir)
+
+    if (song.albumRef) {
+      this.albumsPaths.set(dir, song.albumRef)
+    }
+  }
+
+  _onCoverArtAdded (emitter, coverArt) {
+    const dir = dirName(coverArt.uri)
+    const album = this.albumsPaths.get(dir)
+
+    if (album) {
+      try {
+        const path = decodeURI(coverArt.uri).substring('file://'.length)
+        const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 28, 28, true)
+
+        coverArt.pixbuf = pixbuf
+        album.coverArt = coverArt
+
+        for (const song of album.songs) {
+          this.update(song)
+        }
+      } catch (error) {
+        /**
+         * FIXME: Opening file failed due to undecoded characters such as '#'.
+         */
+
+         // logError(error, 'PixbufError')
+      }
+    }
   }
 
   getSongFromPos (pos) {
@@ -190,6 +283,8 @@ const CollectionRoles = {
   Rating: 5,
   Genre: 6,
   Path: 7,
+  IconName: 8,
+  Pixbuf: 9,
 }
 
 var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.ListStore {
@@ -211,6 +306,8 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
       GObject.TYPE_STRING,
       GObject.TYPE_STRING,
       GObject.TYPE_STRING,
+      GObject.TYPE_STRING,
+      GdkPixbuf.Pixbuf,
     ])
   }
 
@@ -235,18 +332,23 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
 
     const values = new Map([
       [CollectionRoles.Id, song.id],
-      [CollectionRoles.Title, song.title],
+      [CollectionRoles.Title, song.title + ' ' + (song.coverArt ? 'OK' : '')],
       [CollectionRoles.Artist, artistAndAlbum],
       [CollectionRoles.Duration, formatProgressTime(song.duration)],
       [CollectionRoles.Rating, formatStars(song.rating)],
       [CollectionRoles.Genre, song.genre || ''],
-      [CollectionRoles.Path, song.path]
+      [CollectionRoles.Path, song.path],
+      [CollectionRoles.IconName, 'media-floppy-symbolic'],
     ])
 
     if (song.trackNumber > 0) {
       const trackAndTotal = `${song.trackNumber} <span size="x-small">/ ${song.albumTrackCount || '∞'}</span>`
 
       values.set(CollectionRoles.Number, trackAndTotal)
+    }
+
+    if (song.coverArtPixbuf) {
+      values.set(CollectionRoles.Pixbuf, song.coverArtPixbuf)
     }
 
     return values
@@ -308,7 +410,7 @@ var CollectionMasterModel = GObject.registerClass(class CollectionMasterModel ex
      */
     const iter = this.rootModel.get_iter_from_string(`${sid - 1}`)[1]
     const path = this.rootModel.get_path(iter)
-    
+
     return new Gtk.TreeRowReference(this.rootModel, path)
   }
 
@@ -494,7 +596,8 @@ var Queue = class Queue {
 const QueueRoles = {
   Label: 0,
   Background: 1,
-  FontWeight: 2
+  FontWeight: 2,
+  Pixbuf: 3,
 }
 
 var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
@@ -506,7 +609,8 @@ var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
     this.set_column_types([
       GObject.TYPE_STRING,
       GObject.TYPE_STRING,
-      GObject.TYPE_UINT,
+      GObject.TYPE_STRING,
+      GdkPixbuf.Pixbuf,
     ])
 
     this._activeRow = null
@@ -529,7 +633,7 @@ var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
 
   setActiveRow (iter) {
     if (this._activeRow) {
-      this.set_value(this._activeRow, QueueRoles.FontWeight, null)
+      this.set_value(this._activeRow, QueueRoles.FontWeight, 400)
     }
 
     this._activeRow = iter
@@ -544,5 +648,9 @@ var QueueModel = GObject.registerClass(class QueueModel extends Gtk.ListStore {
     const iter = this.append()
 
     this.set_value(iter, QueueRoles.Label, `${title}\r<small>${artist} • ${album}</small>`)
+
+    if (song.coverArtPixbuf) {
+      this.set_value(iter, QueueRoles.Pixbuf, song.coverArtPixbuf)
+    }
   }
 })

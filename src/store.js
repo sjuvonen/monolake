@@ -35,6 +35,7 @@ var MusicManager = class MusicManager {
       ['artist', new ArtistProvider()],
       ['album', new AlbumProvider()],
       ['song', new SongProvider()],
+      ['cover-art', new CoverArtProvider()]
     ])
   }
 
@@ -48,6 +49,10 @@ var MusicManager = class MusicManager {
 
   loadSongs (emitter) {
     return this.providers.get('song').loadAll(emitter)
+  }
+
+  loadCoverArt (emitter, paths) {
+    return this.providers.get('cover-art').loadAll(emitter, paths)
   }
 }
 
@@ -97,13 +102,27 @@ class SongProvider extends Provider {
     super('song')
 
     // this.secondaryDb = Gda.Connection.open_sqlite('.', 'foodb', false)
-
-    // log('OPEN')
-
-    // log('SQLITE: ' + this.secondaryDb)
   }
 
   loadAll (emitter) {
     return this._execute(Query.AllSongs, emitter)
+  }
+}
+
+class CoverArtProvider extends Provider {
+  constructor () {
+    super('cover-art')
+  }
+
+  async loadAll (emitter, dirs) {
+    const covers = new Map()
+    let total = 0
+
+    for (const dir of dirs) {
+      const query = Query.ImagesInFolder.replace('%PATH%', `${dir}/`)
+      total += await this._execute(query, emitter)
+    }
+
+    return total
   }
 }
