@@ -241,15 +241,22 @@ var MainWindow = class MainWindow {
   }
 
   onScoreButtonClicked (button) {
-    const buttons = new WeakMap([
-      [this._builder.get_object('buttonScoreOne'), 1],
-      [this._builder.get_object('buttonScoreTwo'), 2],
-      [this._builder.get_object('buttonScoreThree'), 3],
-      [this._builder.get_object('buttonScoreFour'), 4],
-      [this._builder.get_object('buttonScoreFive'), 5],
-    ])
+    const iter = this.playlistManager.collection.getCurrentIter()
 
-    this.updateMainScoreButtons(buttons.get(button) || 0)
+    if (iter) {
+      const buttons = new WeakMap([
+        [this._builder.get_object('buttonScoreOne'), 1],
+        [this._builder.get_object('buttonScoreTwo'), 2],
+        [this._builder.get_object('buttonScoreThree'), 3],
+        [this._builder.get_object('buttonScoreFour'), 4],
+        [this._builder.get_object('buttonScoreFive'), 5],
+      ])
+
+      const score = buttons.get(button) || 0
+
+      this.updateMainScoreButtons(score)
+      this.collectionMasterModel.setSongRating(iter, score)
+    }
   }
 
   onSearchChanged (input) {
@@ -351,8 +358,6 @@ class PlaylistManager {
     }
 
     if (song) {
-      this.queuedSong = song
-
       if (startPlayback) {
         this.player.play(song.path)
       } else {
@@ -364,7 +369,6 @@ class PlaylistManager {
   }
 
   play (song) {
-    this.queuedSong = song
     this.player.play(song.path)
   }
 
@@ -373,11 +377,12 @@ class PlaylistManager {
   }
 
   _onSongChanged (sender, path) {
-    if (this.queuedSong && this.queuedSong.path === path) {
-      this.events.emit('song-changed', this.queuedSong)
-    }
+    const ref = this.collection.model.getRootReferenceForFile(path)
+    const iter = this.collection.model.getIterFromRootReference(ref)
+    const song = this.collection.model.getSongFromRootReference(ref)
 
-    this.queuedSong = null
+    this.collection.select(iter)
+    this.events.emit('song-changed', song)
   }
 }
 
@@ -500,6 +505,14 @@ class CollectionProvider {
     }
 
     return iter
+  }
+
+  getCurrentIter () {
+    if (this.currentRoot) {
+      return this.model.getIterFromRootReference(this.currentRoot)
+    } else {
+      return null
+    }
   }
 
   getCurrentPath () {

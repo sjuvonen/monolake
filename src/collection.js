@@ -2,7 +2,7 @@ const { GLib, GObject, Gtk } = imports.gi
 const { MusicManager } = imports.store
 const { EventEmitter } = imports.events
 const { Timer } = imports.timer
-const { formatProgressTime, mapPathToRootModel } = imports.utils
+const { formatProgressTime, formatStars, mapPathToRootModel } = imports.utils
 
 var Sorting = {
   Standard: 'standard',
@@ -77,10 +77,6 @@ function readSong (cursor) {
   const song = new Song()
   const tagString = cursor.get_string(0)[0]
   const tags = tagString ? tagString.split(',') : []
-
-  if (tags.length) {
-    // log(`T: ${tags.length}; ` + tags)
-  }
 
   song.path = cursor.get_string(1)[0]
   song.artist = cursor.get_string(2)[0]
@@ -179,6 +175,10 @@ var Collection = class Collection {
   getSong (sid) {
     return this.songsMap.get(sid)
   }
+
+  update (song) {
+    this.events.emit('song-updated', song)
+  }
 }
 
 const CollectionRoles = {
@@ -200,6 +200,7 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
 
     this.collection = collection
     this.collection.events.connect('song-added', this._onItemAdded.bind(this))
+    this.collection.events.connect('song-updated', this._onItemUpdated.bind(this))
 
     this.set_column_types([
       GObject.TYPE_UINT,
@@ -214,15 +215,30 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
   }
 
   _onItemAdded (emitter, song) {
-    const artistAndAlbum = [song.artistName || '⎼', song.albumTitle].filter(v => !!v).join(' • ')
-    const ratingStars = ''.padStart(song.rating, '★').padEnd(5, '☆')
+    const valuesMap = this._songToValues(song)
+    const row = this.iter_n_children(null)
 
-    const valuesMap = new Map([
+    this.insert_with_valuesv(row, [...valuesMap.keys()], [...valuesMap.values()])
+  }
+
+  _onItemUpdated (emitter, song) {
+    const valuesMap = this._songToValues(song)
+    const iter = this.get_iter_from_string(`${song.id - 1}`)[1]
+
+    for (const [i, value] of valuesMap) {
+      this.set_value(iter, i, value)
+    }
+  }
+
+  _songToValues (song) {
+    const artistAndAlbum = [song.artistName || '⎼', song.albumTitle].filter(v => !!v).join(' • ')
+
+    const values = new Map([
       [CollectionRoles.Id, song.id],
       [CollectionRoles.Title, song.title],
       [CollectionRoles.Artist, artistAndAlbum],
       [CollectionRoles.Duration, formatProgressTime(song.duration)],
-      [CollectionRoles.Rating, ratingStars],
+      [CollectionRoles.Rating, formatStars(song.rating)],
       [CollectionRoles.Genre, song.genre || ''],
       [CollectionRoles.Path, song.path]
     ])
@@ -230,12 +246,10 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
     if (song.trackNumber > 0) {
       const trackAndTotal = `${song.trackNumber} <span size="x-small">/ ${song.albumTrackCount || '∞'}</span>`
 
-      valuesMap.set(CollectionRoles.Number, trackAndTotal)
+      values.set(CollectionRoles.Number, trackAndTotal)
     }
 
-    const row = this.iter_n_children(null)
-
-    this.insert_with_valuesv(row, [...valuesMap.keys()], [...valuesMap.values()])
+    return values
   }
 })
 
@@ -287,6 +301,26 @@ var CollectionMasterModel = GObject.registerClass(class CollectionMasterModel ex
     })
   }
 
+  getRootReferenceForSong (sid) {
+    /**
+     * This is safe as song IDs are simply ordered integers and songs cannot be
+     * removed from the collection.
+     */
+    const iter = this.rootModel.get_iter_from_string(`${sid - 1}`)[1]
+    const path = this.rootModel.get_path(iter)
+    return new Gtk.TreeRowReference(this.rootModel, path)
+  }
+
+  getRootReferenceForFile (uri) {
+    for (const song of this.collection.songs) {
+      if (song.path === uri) {
+        return this.getRootReferenceForSong(song.id)
+      }
+    }
+
+    return null
+  }
+
   getRootReference (path) {
     if (path instanceof Gtk.TreeIter) {
       path = this.get_path(path)
@@ -315,6 +349,32 @@ var CollectionMasterModel = GObject.registerClass(class CollectionMasterModel ex
     } else {
       return null
     }
+  }
+
+  getSongFromRootReference (ref) {
+    if (ref.valid()) {
+      const iter = this.rootModel.get_iter(ref.get_path())[1]
+      const sid = this.rootModel.get_value(iter, CollectionRoles.Id)
+
+      return this.collection.getSong(sid)
+    } else {
+      return null
+    }
+  }
+
+  setSongRating (iter, rating) {
+    const sid = this.get_value(iter, CollectionRoles.Id)
+    const song = this.collection.getSong(sid)
+    song.rating = rating
+
+    this.collection.update(song)
+  }
+
+  _rootIter (iter) {
+    const sortIter = this.convert_iter_to_child_iter(iter)
+    const rootIter = this.sortModel.convert_iter_to_child_iter(sortIter)
+
+    return rootIter
   }
 
   get collection () {

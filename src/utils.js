@@ -55,3 +55,7 @@ function mapFromRootModel (model, iter) {
 
   return iter
 }
+
+function formatStars(enabledAmount, maxAmount = 5) {
+  return ''.padStart(enabledAmount, '★').padEnd(maxAmount, '☆')
+}
