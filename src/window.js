@@ -7,11 +7,20 @@ const { CollectionCellRenderer } = imports.renderers
 const { Timer } = imports.timer
 const utils = imports.utils
 
+class PlaybackOptions {
+  constructor () {
+    this.repeat = false
+    this.shuffle = false
+  }
+
+}
+
 var MainWindow = class MainWindow {
   constructor (window, builder, player) {
     this._window = window
     this._builder = builder
     this.player = player
+    this.playbackOptions = new PlaybackOptions()
 
     this.bindSignals()
 
@@ -20,6 +29,8 @@ var MainWindow = class MainWindow {
       'buttonPlayOrPause',
       'buttonPlayPrevious',
       'buttonPlayNext',
+      'buttonRepeat',
+      'buttonShuffle',
       'buttonToggleSearchBar',
       'collectionView',
       'comboSorting',
@@ -76,7 +87,7 @@ var MainWindow = class MainWindow {
     })
 
     const queue = new QueueProvider(this.queueModel, this.queueModel.queue)
-    const collection = new CollectionProvider(this.filterModel, this.collection)
+    const collection = new CollectionProvider(this.filterModel, this.collection, this.playbackOptions)
 
     this.playlistManager = new PlaylistManager(this.player, queue, collection)
 
@@ -157,6 +168,11 @@ var MainWindow = class MainWindow {
     }
   }
 
+  onPlaybackOptionsChanged () {
+    this.playbackOptions.repeat = this.ui.buttonRepeat.get_active()
+    this.playbackOptions.shuffle = this.ui.buttonShuffle.get_active()
+  }
+
   onQueueRowActivated (view, path, column) {
     const row = utils.mapPathToRootModel(view.model, path).to_string()
     const song = this.queue.getSong(row)
@@ -173,7 +189,7 @@ var MainWindow = class MainWindow {
   }
 
   onClickPlayPrevious (button) {
-    log('PLAY PREVIOUS')
+    this.playlistManager.previous(true)
   }
 
   onClickPlayNext (button) {
@@ -277,6 +293,20 @@ class PlaylistManager {
     this.player.events.connect('need-next-song', this._onNeedNextSong.bind(this))
   }
 
+  previous () {
+    if (this.collection.hasPrevious()) {
+      const iter = this.collection.select(this.collection.getPrevious())
+      const song = this.collection.getSong(iter)
+
+      if (song) {
+        this.player.play(song.path)
+        return
+      }
+    }
+
+    this.player.stop()
+  }
+
   next (startPlayback = false) {
     let song = null
 
@@ -284,16 +314,23 @@ class PlaylistManager {
       const iter = this.queue.select(this.queue.getNext())
       song = this.queue.getSong(iter)
     } else if (this.collection.hasNext()) {
+      /**
+       * Pop the previously active item in queue.
+       */
       this.queue.getNext()
 
       const iter = this.collection.select(this.collection.getNext())
       song = this.collection.getSong(iter)
     }
 
-    if (startPlayback) {
-      this.player.play(song.path)
+    if (song) {
+      if (startPlayback) {
+        this.player.play(song.path)
+      } else {
+        this.player.setPrefetch(song.path)
+      }
     } else {
-      this.player.setPrefetch(song.path)
+      this.player.stop()
     }
   }
 
@@ -339,10 +376,38 @@ class QueueProvider {
 }
 
 class CollectionProvider {
-  constructor (model, collection) {
+  constructor (model, collection, playbackOptions) {
     this.model = model
     this.collection = collection
+    this.playbackOptions = playbackOptions
     this.current = null
+  }
+
+  hasPrevious () {
+    return true
+  }
+
+  getPrevious () {
+    if (this.playbackOptions.shuffle) {
+      return this.getNext()
+    } else {
+      if (this.current && this.current.valid()) {
+        const iter = this.model.get_iter(this.current.get_path())[1]
+
+        if (this.model.iter_previous(iter)) {
+          return iter
+        }
+
+        if (!this.playbackOptions.repeat) {
+          return null
+        }
+      }
+
+      const last = this.model.iter_n_children(null) - 1
+      const [ok, iter] = this.model.iter_nth_child(null, last)
+
+      return ok ? iter : null
+    }
   }
 
   hasNext () {
@@ -350,28 +415,49 @@ class CollectionProvider {
   }
 
   getNext () {
-    if (this.current) {
-      const current = parseInt(this.current.get_path().to_string())
-      const [ok, iter] = this.model.get_iter_from_string(`${current + 1}`)
+    if (this.playbackOptions.shuffle) {
+      const max = this.model.iter_n_children(null) - 1
+      const row = Math.round(Math.random() * max)
 
-      if (ok) {
-        return iter
+      return this.model.iter_nth_child(null, row)[1]
+    } else {
+      if (this.current) {
+        const current = parseInt(this.current.get_path().to_string())
+        const [ok, iter] = this.model.iter_nth_child(null, current + 1)
+
+        if (ok) {
+          return iter
+        } else if (this.playbackOptions.repeat) {
+          return this.model.get_iter_first()[1]
+        } else {
+          return null
+        }
+      } else {
+        return this.model.get_iter_first()[1]
       }
     }
-
-    return this.model.get_iter_first()[1]
   }
 
   getSong (iter) {
-    const sid = this.model.get_value(iter, 0)
-    const song = this.collection.getSong(sid)
+    if (iter) {
+      const sid = this.model.get_value(iter, 0)
+      const song = this.collection.getSong(sid)
 
-    return song
+      return song
+    } else {
+      return null
+    }
   }
 
   select (iter) {
-    const path = this.model.get_path(iter)
-    this.current = new Gtk.TreeRowReference(this.model, path)
+    if (iter) {
+      const sid = this.model.get_value(iter, 0)
+      const path = this.model.get_path(iter)
+
+      this.current = new Gtk.TreeRowReference(this.model, path)
+    } else {
+      this.current = null
+    }
 
     return iter
   }

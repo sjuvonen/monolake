@@ -858,12 +858,13 @@
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <child>
-              <object class="GtkToggleButton">
+              <object class="GtkToggleButton" id="buttonRepeat">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="valign">center</property>
                 <property name="draw_indicator">True</property>
+                <signal name="toggled" handler="onPlaybackOptionsChanged" swapped="no"/>
                 <child>
                   <object class="GtkImage">
                     <property name="visible">True</property>
@@ -882,12 +883,13 @@
               </packing>
             </child>
             <child>
-              <object class="GtkToggleButton">
+              <object class="GtkToggleButton" id="buttonShuffle">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="valign">center</property>
                 <property name="draw_indicator">True</property>
+                <signal name="toggled" handler="onPlaybackOptionsChanged" swapped="no"/>
                 <child>
                   <object class="GtkImage">
                     <property name="visible">True</property>
