@@ -1,7 +1,7 @@
 #!env gjs
 
 const { Gdk, Gio, GObject, Gtk } = imports.gi
-const { Collection, CollectionFilterModel, CollectionModel, CollectionSortModel } = imports.collection
+const { Collection, CollectionMasterModel } = imports.collection
 const { Queue, QueueModel } = imports.collection
 const { EventEmitter } = imports.events
 const { CollectionCellRenderer } = imports.renderers
@@ -13,7 +13,6 @@ class PlaybackOptions {
     this.repeat = false
     this.shuffle = false
   }
-
 }
 
 var MainWindow = class MainWindow {
@@ -53,7 +52,7 @@ var MainWindow = class MainWindow {
     )
 
     this.collection = new Collection()
-    this.collectionModel = new CollectionModel({ collection: this.collection })
+    // this.collectionModel = new CollectionModel({ collection: this.collection })
 
     this.queue = new Queue()
     this.queueModel = new QueueModel({ queue: this.queue })
@@ -81,18 +80,12 @@ var MainWindow = class MainWindow {
   }
 
   async setup () {
+    this.collectionMasterModel = new CollectionMasterModel({ collection: this.collection })
+
     await this.collection.load()
 
-    this.sortModel = new CollectionSortModel({
-      model: this.collectionModel
-    })
-
-    this.filterModel = new CollectionFilterModel({
-      child_model: this.sortModel
-    })
-
     const queue = new QueueProvider(this.queueModel, this.queueModel.queue)
-    const collection = new CollectionProvider(this.filterModel, this.collection, this.playbackOptions)
+    const collection = new CollectionProvider(this.collectionMasterModel, this.collection, this.playbackOptions)
 
     this.playlistManager = new PlaylistManager(this.player, queue, collection)
     this.playlistManager.events.connect('song-changed', this._onSongChanged.bind(this))
@@ -110,7 +103,7 @@ var MainWindow = class MainWindow {
       }
     }
 
-    this.ui.collectionView.set_model(this.filterModel)
+    this.ui.collectionView.set_model(this.collectionMasterModel)
 
     /**
      * Avoid garbage collection.
@@ -260,7 +253,7 @@ var MainWindow = class MainWindow {
   }
 
   onSearchChanged (input) {
-    this.filterModel.filterBy(input.text)
+    this.collectionMasterModel.filterBy(input.text)
   }
 
   onStartSearch () {
@@ -277,7 +270,7 @@ var MainWindow = class MainWindow {
     const [, iter] = this.ui.comboSorting.get_active_iter()
     const sortMode = this.ui.modelSortingOptions.get_value(iter, 0)
 
-    this.sortModel.sortBy(sortMode)
+    this.collectionMasterModel.sortBy(sortMode)
   }
 
   _onSongChanged (sender, song) {
@@ -429,7 +422,7 @@ class CollectionProvider {
     this.model = model
     this.collection = collection
     this.playbackOptions = playbackOptions
-    this.current = null
+    this.currentRoot = null
   }
 
   hasPrevious () {
@@ -440,8 +433,8 @@ class CollectionProvider {
     if (this.playbackOptions.shuffle) {
       return this.getNext()
     } else {
-      if (this.current && this.current.valid()) {
-        const iter = this.model.get_iter(this.current.get_path())[1]
+      if (this.currentRoot && this.currentRoot.valid()) {
+        const iter = this.model.getIterFromRootReference(this.currentRoot)
 
         if (this.model.iter_previous(iter)) {
           return iter
@@ -470,8 +463,9 @@ class CollectionProvider {
 
       return this.model.iter_nth_child(null, row)[1]
     } else {
-      if (this.current) {
-        const current = parseInt(this.current.get_path().to_string())
+      if (this.currentRoot) {
+        const path = this.model.getPathFromRootReference(this.currentRoot)
+        const current = parseInt(path.to_string())
         const [ok, iter] = this.model.iter_nth_child(null, current + 1)
 
         if (ok) {
@@ -500,14 +494,19 @@ class CollectionProvider {
 
   select (iter) {
     if (iter) {
-      const sid = this.model.get_value(iter, 0)
-      const path = this.model.get_path(iter)
-
-      this.current = new Gtk.TreeRowReference(this.model, path)
+      this.currentRoot = this.model.getRootReference(iter)
     } else {
-      this.current = null
+      this.currentRoot = null
     }
 
     return iter
+  }
+
+  getCurrentPath () {
+    if (this.currentRoot) {
+      return this.model.getPathFromRootReference(this.currentRoot)
+    } else {
+      return null
+    }
   }
 }

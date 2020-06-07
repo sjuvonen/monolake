@@ -19,7 +19,6 @@ var CollectionCellRenderer = class CollectionCellRenderer {
     this.theme.bg.active.alpha = 0.3
 
     this.view.connect('draw', this.onViewChanged.bind(this))
-
   }
 
   render (column, cell, model, iter) {
@@ -69,7 +68,7 @@ var CollectionCellRenderer = class CollectionCellRenderer {
       const [ok, start, end] = this.view.get_visible_range()
 
       if (ok) {
-        this.activePath = this.provider.current.get_path()
+        this.activePath = this.provider.getCurrentPath()
 
         const a = this.activePath.compare(start)
         const b = this.activePath.compare(end)

@@ -79,7 +79,7 @@ function readSong (cursor) {
   const tags = tagString ? tagString.split(',') : []
 
   if (tags.length) {
-    log(`T: ${tags.length}; ` + tags)
+    // log(`T: ${tags.length}; ` + tags)
   }
 
   song.path = cursor.get_string(1)[0]
@@ -181,45 +181,6 @@ var Collection = class Collection {
   }
 }
 
-const collectionColumns = [
-  { label: 'ID', field: 'id', type: GObject.TYPE_UINT },
-  { label: 'Track', field: 'trackNumber', type: GObject.TYPE_UINT },
-  { label: 'Title', field: 'title', type: GObject.TYPE_STRING },
-  { label: 'Artist', field: 'artistName', type: GObject.TYPE_STRING },
-  { label: 'Album', field: 'albumTitle', type: GObject.TYPE_STRING },
-  { label: 'Disc', field: 'discNumber', type: GObject.TYPE_UINT },
-  { label: 'Genre', field: 'genre', type: GObject.TYPE_STRING },
-  { label: 'Path', field: 'path', type: GObject.TYPE_STRING },
-]
-
-var LegacyCollectionModel = GObject.registerClass(class LegacyCollectionModel extends Gtk.ListStore {
-  _init (options) {
-    const { collection, ...modelOptions } = options
-
-    super._init(modelOptions)
-    this.set_column_types(collectionColumns.map(col => col.type))
-
-    this.collection = collection
-    this.collection.events.connect('song-added', this._onItemAdded.bind(this))
-  }
-
-  getSong (pos) {
-    return this.collection.songs[pos]
-  }
-
-  _onItemAdded (emitter, song) {
-    const iter = this.append()
-
-    for (const [i, column] of collectionColumns.entries()) {
-      const value = song[column.field]
-
-      if (![undefined, null].includes(value)) {
-        this.set_value(iter, i, song[column.field])
-      }
-    }
-  }
-})
-
 const CollectionRoles = {
   Id: 0,
   Title: 1,
@@ -252,24 +213,29 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
     ])
   }
 
-  getSong (pos) {
-    return this.collection.songs[pos]
-  }
-
   _onItemAdded (emitter, song) {
-    const iter = this.append()
+    const artistAndAlbum = [song.artistName || '⎼', song.albumTitle].filter(v => !!v).join(' • ')
+    const ratingStars = ''.padStart(song.rating, '★').padEnd(5, '☆')
 
-    this.set_value(iter, CollectionRoles.Id, song.id)
-    this.set_value(iter, CollectionRoles.Title, song.title)
-    this.set_value(iter, CollectionRoles.Artist, [song.artistName || '⎼', song.albumTitle].filter(v => !!v).join(' • '))
-    this.set_value(iter, CollectionRoles.Duration, formatProgressTime(song.duration))
-    this.set_value(iter, CollectionRoles.Rating, ''.padStart(song.rating, '★').padEnd(5, '☆'))
-    this.set_value(iter, CollectionRoles.Genre, song.genre || '')
-    this.set_value(iter, CollectionRoles.Path, song.path)
+    const valuesMap = new Map([
+      [CollectionRoles.Id, song.id],
+      [CollectionRoles.Title, song.title],
+      [CollectionRoles.Artist, artistAndAlbum],
+      [CollectionRoles.Duration, formatProgressTime(song.duration)],
+      [CollectionRoles.Rating, ratingStars],
+      [CollectionRoles.Genre, song.genre || ''],
+      [CollectionRoles.Path, song.path]
+    ])
 
     if (song.trackNumber > 0) {
-      this.set_value(iter, CollectionRoles.Number, `${song.trackNumber} <span size="x-small">/ ${song.albumTrackCount || '∞'}</span>`)
+      const trackAndTotal = `${song.trackNumber} <span size="x-small">/ ${song.albumTrackCount || '∞'}</span>`
+
+      valuesMap.set(CollectionRoles.Number, trackAndTotal)
     }
+
+    const row = this.iter_n_children(null)
+
+    this.insert_with_valuesv(row, [...valuesMap.keys()], [...valuesMap.values()])
   }
 })
 
@@ -297,17 +263,66 @@ var CollectionFilterModel = GObject.registerClass(class CollectionFilterModel ex
       return true
     }
 
-    for (const [i, column] of collectionColumns.entries()) {
-      if (column.type === GObject.TYPE_STRING) {
-        const value = this.child_model.get_value(iter, i)
+    const sid = model.get_value(iter, CollectionRoles.Id)
+    const song = this.collection.getSong(sid)
+    const fields = ['title', 'artistName', 'albumTitle', 'genre']
 
-        if (value !== null && this.filterRegExp.test(value)) {
-          return true
-        }
-      }
+    return fields.some(f => this.filterRegExp.test(song[f]))
+  }
+})
+
+var CollectionMasterModel = GObject.registerClass(class CollectionMasterModel extends CollectionFilterModel {
+  _init (options) {
+    const { collection, ...childOptions } = options
+
+    this.rootModel = new CollectionModel({ collection })
+    this.sortModel = new CollectionSortModel({ model: this.rootModel })
+
+    childOptions.child_model = this.sortModel
+
+    super._init(childOptions)
+
+    collection.events.connect('ready', () => {
+      this.sortBy(Sorting.Standard)
+    })
+  }
+
+  getRootReference (path) {
+    if (path instanceof Gtk.TreeIter) {
+      path = this.get_path(path)
     }
 
-    return false
+    const sortPath = this.convert_path_to_child_path(path)
+    const rootPath = this.sortModel.convert_path_to_child_path(sortPath)
+
+    return new Gtk.TreeRowReference(this.rootModel, rootPath)
+  }
+
+  getPathFromRootReference (ref) {
+    if (!ref.valid()) {
+      return null
+    }
+
+    const sortPath = this.sortModel.convert_child_path_to_path(ref.get_path())
+    const publicPath = this.convert_child_path_to_path(sortPath)
+
+    return publicPath
+  }
+
+  getIterFromRootReference (ref) {
+    if (ref.valid()) {
+      return this.get_iter(this.getPathFromRootReference(ref))[1]
+    } else {
+      return null
+    }
+  }
+
+  get collection () {
+    return this.rootModel.collection
+  }
+
+  sortBy (sortMode) {
+    this.sortModel.sortBy(sortMode)
   }
 })
 
@@ -341,8 +356,6 @@ function compareSongs (fields, first, second) {
 var CollectionSortModel = GObject.registerClass(class CollectionSortModel extends Gtk.TreeModelSort {
   _init (options) {
     super._init(options)
-    this.sortBy(Sorting.Standard)
-    this.collection = options.model.collection
   }
 
   sortBy (sortMode) {
@@ -389,6 +402,10 @@ var CollectionSortModel = GObject.registerClass(class CollectionSortModel extend
     } else {
       return compareSongs(['path'], first, second)
     }
+  }
+
+  get collection () {
+    return this.model.collection
   }
 })
 
