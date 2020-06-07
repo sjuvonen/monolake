@@ -29,7 +29,11 @@ function main (argv) {
 
   application.connect('startup', () => {
     const actionQuit = new Gio.SimpleAction({ name: 'quit' })
-    actionQuit.connect('activate', () => application.quit())
+    
+    actionQuit.connect('activate', () => {
+      player.stop()
+      application.quit()
+    })
 
     const actionPreferences = new Gio.SimpleAction({ name: 'preferences' })
     actionPreferences.connect('activate', openPreferencesDialog)

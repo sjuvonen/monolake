@@ -1,20 +1,22 @@
 #!env gjs
 
-// imports.package.init({
-//   name: 'fi.juvonet.Monolake',
-//   version: '1.0',
-//   prefix: '/home/samu/.my-packages',
-//   libdir: ''
-// })
+imports.package.init({
+  name: 'fi.juvonet.Monolake',
+  version: '1.0',
+  prefix: '/home/samu/.my-packages',
+  libdir: ''
+})
 
 imports.searchPath.unshift('./src')
 
 imports.package.require({
-  'GLib': '2.0',
-  'Gtk': '3.0',
-  'Gst': '1.0',
-  'GstAudio': '1.0',
+  // Gda: '5.0',
+  GLib: '2.0',
+  Gst: '1.0',
+  Gtk: '3.0',
 })
 
 // imports.package.initGettext()
+
+imports.gi.GLib.set_prgname('Monolake')
 imports.package.run(imports.application)

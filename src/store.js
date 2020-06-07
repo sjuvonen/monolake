@@ -1,5 +1,6 @@
 const { SparqlConnection } = imports.gi.Tracker
 const { Query } = imports.queries
+// const { Gda } = imports.gi
 
 function scrollCursor (dataType, emitter, cursor) {
   return new Promise((resolve, reject) => {
@@ -94,6 +95,12 @@ class ArtistProvider extends Provider {
 class SongProvider extends Provider {
   constructor () {
     super('song')
+
+    // this.secondaryDb = Gda.Connection.open_sqlite('.', 'foodb', false)
+
+    // log('OPEN')
+
+    // log('SQLITE: ' + this.secondaryDb)
   }
 
   loadAll (emitter) {

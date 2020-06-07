@@ -73,6 +73,67 @@
             <property name="margin_top">4</property>
             <property name="margin_bottom">4</property>
             <property name="spacing">32</property>
+            <child type="center">
+              <object class="GtkBox">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="halign">center</property>
+                <child>
+                  <object class="GtkLabel" id="labelFirstProgress">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="margin_left">8</property>
+                    <property name="margin_right">8</property>
+                    <property name="margin_start">8</property>
+                    <property name="margin_end">8</property>
+                    <property name="label" translatable="yes">0:00</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkScale" id="scaleSeeker">
+                    <property name="width_request">340</property>
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="hexpand">True</property>
+                    <property name="restrict_to_fill_level">False</property>
+                    <property name="draw_value">False</property>
+                    <property name="value_pos">right</property>
+                    <signal name="adjust-bounds" handler="onSeekerAdjustBounds" swapped="no"/>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="labelSecondProgress">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="margin_left">4</property>
+                    <property name="margin_right">8</property>
+                    <property name="margin_start">4</property>
+                    <property name="margin_end">8</property>
+                    <property name="label" translatable="yes">-0:00</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">2</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">3</property>
+              </packing>
+            </child>
             <child>
               <object class="GtkBox">
                 <property name="width_request">180</property>
@@ -173,64 +234,6 @@
                 <property name="fill">True</property>
                 <property name="pack_type">end</property>
                 <property name="position">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkBox">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="halign">center</property>
-                <child>
-                  <object class="GtkLabel" id="labelFirstProgress">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="margin_start">8</property>
-                    <property name="margin_end">8</property>
-                    <property name="label" translatable="yes">0:00</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkScale" id="scaleSeeker">
-                    <property name="width_request">340</property>
-                    <property name="visible">True</property>
-                    <property name="can_focus">True</property>
-                    <property name="hexpand">True</property>
-                    <property name="restrict_to_fill_level">False</property>
-                    <property name="round_digits">0</property>
-                    <property name="draw_value">False</property>
-                    <property name="value_pos">right</property>
-                    <signal name="adjust-bounds" handler="onSeekerAdjustBounds" swapped="no"/>
-                  </object>
-                  <packing>
-                    <property name="expand">True</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="labelSecondProgress">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="margin_start">4</property>
-                    <property name="margin_end">8</property>
-                    <property name="label" translatable="yes">-0:00</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">2</property>
-                  </packing>
-                </child>
-              </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">2</property>
               </packing>
             </child>
           </object>

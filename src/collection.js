@@ -308,6 +308,7 @@ var CollectionMasterModel = GObject.registerClass(class CollectionMasterModel ex
      */
     const iter = this.rootModel.get_iter_from_string(`${sid - 1}`)[1]
     const path = this.rootModel.get_path(iter)
+    
     return new Gtk.TreeRowReference(this.rootModel, path)
   }
 
