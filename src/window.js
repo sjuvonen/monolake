@@ -3,6 +3,7 @@
 const { Gdk, Gio, GObject, Gtk } = imports.gi
 const { Collection, CollectionFilterModel, CollectionModel, CollectionSortModel } = imports.collection
 const { Queue, QueueModel } = imports.collection
+const { EventEmitter } = imports.events
 const { CollectionCellRenderer } = imports.renderers
 const { Timer } = imports.timer
 const utils = imports.utils
@@ -35,6 +36,11 @@ var MainWindow = class MainWindow {
       'collectionView',
       'comboSorting',
       'headerBar',
+      'imageScoreOne',
+      'imageScoreTwo',
+      'imageScoreThree',
+      'imageScoreFour',
+      'imageScoreFive',
       'labelFirstProgress',
       'labelSecondProgress',
       'modelSortingOptions',
@@ -66,7 +72,6 @@ var MainWindow = class MainWindow {
     this.player.events.connect('playback-stopped', this._onPlaybackStopped.bind(this))
     this.player.events.connect('duration-changed', this._onDurationChanged.bind(this))
     this.player.events.connect('progress-changed', this._onProgressChanged.bind(this))
-    this.player.events.connect('song-changed', this._onSongChanged.bind(this))
 
     const menu = new Gio.Menu()
     menu.append('Preferences', 'app.preferences')
@@ -90,6 +95,7 @@ var MainWindow = class MainWindow {
     const collection = new CollectionProvider(this.filterModel, this.collection, this.playbackOptions)
 
     this.playlistManager = new PlaylistManager(this.player, queue, collection)
+    this.playlistManager.events.connect('song-changed', this._onSongChanged.bind(this))
 
     const cellRenderer = new CollectionCellRenderer(
       this.playlistManager.collection,
@@ -139,8 +145,8 @@ var MainWindow = class MainWindow {
     if (ok) {
       const sid = view.model.get_value(iter, 0)
       const song = this.collection.getSong(sid)
-      this.player.play(song.path)
 
+      this.playlistManager.play(song)
       this.playlistManager.collection.select(iter)
     }
   }
@@ -177,7 +183,7 @@ var MainWindow = class MainWindow {
     const row = utils.mapPathToRootModel(view.model, path).to_string()
     const song = this.queue.getSong(row)
 
-    this.player.play(song.path)
+    this.playlistManager.play(song)
   }
 
   onClickPlayOrPause (button) {
@@ -241,6 +247,18 @@ var MainWindow = class MainWindow {
     this.ui.revealerRightSidebar.set_reveal_child(button.get_active())
   }
 
+  onScoreButtonClicked (button) {
+    const buttons = new WeakMap([
+      [this._builder.get_object('buttonScoreOne'), 1],
+      [this._builder.get_object('buttonScoreTwo'), 2],
+      [this._builder.get_object('buttonScoreThree'), 3],
+      [this._builder.get_object('buttonScoreFour'), 4],
+      [this._builder.get_object('buttonScoreFive'), 5],
+    ])
+
+    this.updateMainScoreButtons(buttons.get(button) || 0)
+  }
+
   onSearchChanged (input) {
     this.filterModel.filterBy(input.text)
   }
@@ -262,8 +280,21 @@ var MainWindow = class MainWindow {
     this.sortModel.sortBy(sortMode)
   }
 
-  _onSongChanged () {
+  _onSongChanged (sender, song) {
     this.ui.collectionView.queue_draw()
+    this.updateMainScoreButtons(song.rating)
+
+    this._builder.get_object('buttonLoved').set_active(song.loved)
+  }
+
+  updateMainScoreButtons (score) {
+    const scoreButtons = ['imageScoreOne', 'imageScoreTwo', 'imageScoreThree', 'imageScoreFour', 'imageScoreFive']
+
+    const [iconOff, iconOn] = ['non-starred-symbolic', 'starred-symbolic']
+
+    for (const [i, bid] of scoreButtons.entries()) {
+      this.ui[bid].set_property('icon-name', score > i ? iconOn : iconOff)
+    }
   }
 
   addSelectedSongsToQueue () {
@@ -290,7 +321,10 @@ class PlaylistManager {
   constructor (player, queue, collection) {
     Object.assign(this, { player, queue, collection })
 
+    this.events = new EventEmitter()
+
     this.player.events.connect('need-next-song', this._onNeedNextSong.bind(this))
+    this.player.events.connect('song-changed', this._onSongChanged.bind(this))
   }
 
   previous () {
@@ -299,7 +333,7 @@ class PlaylistManager {
       const song = this.collection.getSong(iter)
 
       if (song) {
-        this.player.play(song.path)
+        this.play(song)
         return
       }
     }
@@ -324,6 +358,8 @@ class PlaylistManager {
     }
 
     if (song) {
+      this.queuedSong = song
+
       if (startPlayback) {
         this.player.play(song.path)
       } else {
@@ -334,8 +370,21 @@ class PlaylistManager {
     }
   }
 
+  play (song) {
+    this.queuedSong = song
+    this.player.play(song.path)
+  }
+
   _onNeedNextSong () {
     this.next()
+  }
+
+  _onSongChanged (sender, path) {
+    if (this.queuedSong && this.queuedSong.path === path) {
+      this.events.emit('song-changed', this.queuedSong)
+    }
+
+    this.queuedSong = null
   }
 }
 

@@ -71,8 +71,16 @@ function readAlbum (cursor) {
 }
 
 function readSong (cursor) {
+  const GNOME_MUSIC_STARRED = 'http://www.semanticdesktop.org/ontologies/2007/08/15/nao#predefined-tag-favorite'
+  const NAUTILUS_STARRED = 'urn:gnome:nautilus:starred'
+
   const song = new Song()
-  const tags = cursor.get_string(0)
+  const tagString = cursor.get_string(0)[0]
+  const tags = tagString ? tagString.split(',') : []
+
+  if (tags.length) {
+    log(`T: ${tags.length}; ` + tags)
+  }
 
   song.path = cursor.get_string(1)[0]
   song.artist = cursor.get_string(2)[0]
@@ -84,10 +92,14 @@ function readSong (cursor) {
   song.trackNumber = cursor.get_integer(7)
   song.discNumber = cursor.get_integer(8)
 
-  song.loved = tags.includes('http://www.semanticdesktop.org/ontologies/2007/08/15/nao#predefined-tag-favorite')
+  song.loved = tags.includes(GNOME_MUSIC_STARRED)
+  song.rating = 0
 
-  // song.rating = Math.round(Math.random() * 5)
-  song.rating = song.loved ? 5 : 0
+  if (tags.includes(GNOME_MUSIC_STARRED)) {
+    song.rating = 5
+  } else if (tags.includes(NAUTILUS_STARRED)) {
+    song.rating = 3
+  }
 
   return song
 }

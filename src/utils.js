@@ -33,3 +33,25 @@ function mapPathToRootModel (model, path) {
 
   return sourcePath
 }
+
+function mapFromRootModel (model, iter) {
+  const models = []
+
+  while (true) {
+    models.push(model)
+
+    if (model instanceof Gtk.TreeModelSort) {
+      model = model.model
+    } else if (model instanceof Gtk.TreeModelFilter) {
+      model = model.child_model
+    } else {
+      break
+    }
+  }
+
+  for (const model of models.reverse().slice(1)) {
+    iter = model.convert_child_iter_to_iter(iter)
+  }
+
+  return iter
+}

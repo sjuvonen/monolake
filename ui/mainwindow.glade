@@ -431,7 +431,7 @@
                     <property name="orientation">vertical</property>
                     <child>
                       <object class="GtkScrolledWindow" id="scrollerInsideRightSidebar">
-                        <property name="width_request">320</property>
+                        <property name="width_request">310</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="hexpand">False</property>
@@ -703,7 +703,7 @@
           </packing>
         </child>
         <child>
-          <object class="GtkToggleButton">
+          <object class="GtkToggleButton" id="buttonLoved">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
@@ -730,13 +730,14 @@
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <child>
-              <object class="GtkButton">
+              <object class="GtkButton" id="buttonScoreOne">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="valign">center</property>
+                <signal name="clicked" handler="onScoreButtonClicked" swapped="no"/>
                 <child>
-                  <object class="GtkImage">
+                  <object class="GtkImage" id="imageScoreOne">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">starred-symbolic</property>
@@ -753,13 +754,14 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton">
+              <object class="GtkButton" id="buttonScoreTwo">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="valign">center</property>
+                <signal name="clicked" handler="onScoreButtonClicked" swapped="no"/>
                 <child>
-                  <object class="GtkImage">
+                  <object class="GtkImage" id="imageScoreTwo">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">starred-symbolic</property>
@@ -776,13 +778,14 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton">
+              <object class="GtkButton" id="buttonScoreThree">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="valign">center</property>
+                <signal name="clicked" handler="onScoreButtonClicked" swapped="no"/>
                 <child>
-                  <object class="GtkImage">
+                  <object class="GtkImage" id="imageScoreThree">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">starred-symbolic</property>
@@ -799,13 +802,14 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton">
+              <object class="GtkButton" id="buttonScoreFour">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="valign">center</property>
+                <signal name="clicked" handler="onScoreButtonClicked" swapped="no"/>
                 <child>
-                  <object class="GtkImage">
+                  <object class="GtkImage" id="imageScoreFour">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">non-starred-symbolic</property>
@@ -822,13 +826,14 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton">
+              <object class="GtkButton" id="buttonScoreFive">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="valign">center</property>
+                <signal name="clicked" handler="onScoreButtonClicked" swapped="no"/>
                 <child>
-                  <object class="GtkImage">
+                  <object class="GtkImage" id="imageScoreFive">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="icon_name">non-starred-symbolic</property>
