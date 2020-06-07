@@ -245,18 +245,25 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
   _onItemAdded (emitter, song) {
     const iter = this.append()
 
-    const title = GLib.markup_escape_text(song.title, -1)
-    const artist = GLib.markup_escape_text(song.artistName || '', -1)
-    const album = GLib.markup_escape_text(song.albumTitle || '', -1)
+    // const title = GLib.markup_escape_text(song.title, -1)
+    // const artist = GLib.markup_escape_text(song.artistName || '', -1)
+    // const album = GLib.markup_escape_text(song.albumTitle || '', -1)
+
+    /**
+     * FIXME: CARDINALITYYYYYY
+     */
 
     this.set_value(iter, CollectionRoles.Id, song.id)
     this.set_value(iter, CollectionRoles.Title, song.title)
-    this.set_value(iter, CollectionRoles.Artist, [song.artistName, song.albumTitle].filter(v => !!v).join(' • '))
-    this.set_value(iter, CollectionRoles.Number, `${song.trackNumber} <span size="x-small">/ ${song.albumTrackCount || '∞'}</span>`)
+    this.set_value(iter, CollectionRoles.Artist, [song.artistName || '⎼', song.albumTitle].filter(v => !!v).join(' • '))
     this.set_value(iter, CollectionRoles.Duration, formatProgressTime(song.duration))
     this.set_value(iter, CollectionRoles.Rating, ''.padStart(song.rating, '★').padEnd(5, '☆'))
     this.set_value(iter, CollectionRoles.Genre, song.genre || '')
     this.set_value(iter, CollectionRoles.Path, song.path)
+
+    if (song.trackNumber > 0) {
+      this.set_value(iter, CollectionRoles.Number, `${song.trackNumber} <span size="x-small">/ ${song.albumTrackCount || '∞'}</span>`)
+    }
   }
 })
 
@@ -302,6 +309,7 @@ function compareFields (field, first, second) {
   switch (field) {
     case 'discNumber':
     case 'id':
+    case 'rating':
     case 'trackNumber':
       return first[field] - second[field]
 
@@ -341,8 +349,12 @@ var CollectionSortModel = GObject.registerClass(class CollectionSortModel extend
         this.set_default_sort_func(this._sortingRandom.bind(this))
         break
 
+      case Sorting.Rating:
+        this.set_default_sort_func(this._sortingRating.bind(this))
+        break
+
       default:
-        logError(`Invalid sorting mode '${this.sortMode}'.`, 'InvalidSortingError')
+        logError(new Error(`Invalid sorting mode '${this.sortMode}'.`), 'InvalidSortingError')
     }
   }
 
@@ -357,6 +369,20 @@ var CollectionSortModel = GObject.registerClass(class CollectionSortModel extend
     const second = this.collection.getSong(bid)
 
     return compareSongs(['artistName', 'albumTitle', 'discNumber', 'trackNumber'], first, second)
+  }
+
+  _sortingRating (model, a, b) {
+    const aid = model.get_value(a, 0)
+    const bid = model.get_value(b, 0)
+    const first = this.collection.getSong(aid)
+    const second = this.collection.getSong(bid)
+    const delta = compareSongs(['rating'], first, second) * -1
+
+    if (delta) {
+      return delta
+    } else {
+      return compareSongs(['path'], first, second)
+    }
   }
 })
 

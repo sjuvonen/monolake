@@ -99,6 +99,7 @@ var MainWindow = class MainWindow {
      * Avoid garbage collection.
      */
     this.collectionCellRenderer = cellRenderer
+    this.collectionCellRendererFunc = cellRendererFunc
   }
 
   bindSignals () {
@@ -134,8 +135,26 @@ var MainWindow = class MainWindow {
   }
 
   onCollectionViewResized (view, size) {
-    const GENRE = 6
-    view.get_column(GENRE).set_property('visible', size.width > 750)
+    const genreVisible = size.width > 750
+    const coverVisible = size.width > 640
+
+    if (!('isGenreColumnVisible' in this)) {
+      this.isGenreColumnVisible = true
+    }
+
+    if (!('isCoverArtColumnVisible' in this)) {
+      this.isCoverArtColumnVisible = true
+    }
+
+    if (this.isGenreColumnVisible ^ genreVisible) {
+      this.isGenreColumnVisible = genreVisible
+      view.get_column(6).set_property('visible', genreVisible)
+    }
+
+    if (this.isCoverArtColumnVisible ^ coverVisible) {
+      this.isCoverArtColumnVisible = coverVisible
+      view.get_column(0).set_property('visible', coverVisible)
+    }
   }
 
   onQueueRowActivated (view, path, column) {
