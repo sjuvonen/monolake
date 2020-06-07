@@ -1,62 +1,34 @@
 var Query = {
   AllSongs: `
     SELECT
+      nao:hasTag(?song)
       nie:url(?song)
-      ?artist
-      ?album
+      nmm:performer(?song)
+      nmm:musicAlbum(?song)
+      nie:title(?song)
+      nfo:genre(?song)
+      nfo:duration(?song)
+      nmm:trackNumber(?song)
       ?discNumber
-      ?title
-      ?track
-      ?genre
-      ?duration
-      ?tags
     WHERE {
       ?song a nmm:MusicPiece;
-      nie:title ?title;
-
-      . OPTIONAL {
-        ?song nmm:performer ?artist;
-      }
-
-      . OPTIONAL {
-        ?song nmm:trackNumber ?track
-      }
-
-      . OPTIONAL {
-        ?song nmm:musicAlbum ?album
-      }
 
       . OPTIONAL {
         ?song nmm:musicAlbumDisc ?disc
-      }
-
-      . OPTIONAL {
-        ?song nfo:genre ?genre
-      }
-
-      . OPTIONAL {
-        ?song nao:hasTag ?tags
-      }
-
-      . OPTIONAL {
-        ?song nfo:duration ?duration
-      }
-
-      . OPTIONAL {
+        .
         ?disc nmm:setNumber ?discNumber
       }
     }
   `,
 
-  AllArtists: `SELECT ?artist ?name WHERE { ?artist a nmm:Artist; nmm:artistName ?name }`,
+  AllArtists: `SELECT ?artist nmm:artistName(?artist) WHERE { ?artist a nmm:Artist }`,
   AllAlbums: `
     SELECT
       ?album
-      ?name
+      nie:title(?album)
       ?trackCount
     WHERE {
       ?album a nmm:MusicAlbum;
-      nie:title ?name;
 
       . OPTIONAL {
         ?album nmm:albumTrackCount ?trackCount

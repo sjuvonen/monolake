@@ -72,16 +72,18 @@ function readAlbum (cursor) {
 
 function readSong (cursor) {
   const song = new Song()
-  const tags = cursor.get_string(8)
+  const tags = cursor.get_string(0)
 
-  song.path = cursor.get_string(0)[0]
-  song.artist = cursor.get_string(1)[0]
-  song.album = cursor.get_string(2)[0]
-  song.discNumber = cursor.get_integer(3)
+  song.path = cursor.get_string(1)[0]
+  song.artist = cursor.get_string(2)[0]
+  song.album = cursor.get_string(3)[0]
   song.title = cursor.get_string(4)[0]
-  song.trackNumber = cursor.get_integer(5)
-  song.genre = cursor.get_string(6)[0]
-  song.duration = cursor.get_integer(7)
+  song.genre = cursor.get_string(5)[0]
+  song.duration = cursor.get_integer(6)
+
+  song.trackNumber = cursor.get_integer(7)
+  song.discNumber = cursor.get_integer(8)
+
   song.loved = tags.includes('http://www.semanticdesktop.org/ontologies/2007/08/15/nao#predefined-tag-favorite')
 
   // song.rating = Math.round(Math.random() * 5)
@@ -244,14 +246,6 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
 
   _onItemAdded (emitter, song) {
     const iter = this.append()
-
-    // const title = GLib.markup_escape_text(song.title, -1)
-    // const artist = GLib.markup_escape_text(song.artistName || '', -1)
-    // const album = GLib.markup_escape_text(song.albumTitle || '', -1)
-
-    /**
-     * FIXME: CARDINALITYYYYYY
-     */
 
     this.set_value(iter, CollectionRoles.Id, song.id)
     this.set_value(iter, CollectionRoles.Title, song.title)
