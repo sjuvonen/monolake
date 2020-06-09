@@ -10,7 +10,7 @@ imports.package.init({
 imports.searchPath.unshift('./src')
 
 imports.package.require({
-  // Gda: '5.0',
+  Gda: '5.0',
   GLib: '2.0',
   Gst: '1.0',
   Gtk: '3.0',

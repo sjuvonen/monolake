@@ -1,6 +1,19 @@
 const { SparqlConnection } = imports.gi.Tracker
 const { Query } = imports.queries
-// const { Gda } = imports.gi
+const { Gda } = imports.gi
+const { Timer } = imports.timer
+const { Song } = imports.types
+
+function createDatabase (connection) {
+  connection.execute_non_select_command(`
+    CREATE TABLE IF NOT EXISTS songs (
+      id text,
+      score integer,
+
+      PRIMARY KEY (id)
+    )
+  `)
+}
 
 function scrollCursor (dataType, emitter, cursor) {
   return new Promise((resolve, reject) => {
@@ -9,7 +22,13 @@ function scrollCursor (dataType, emitter, cursor) {
     function iter (cursor, result) {
       try {
         if (cursor.next_finish(result)) {
-          emitter.emit(`${dataType}-loaded`, cursor)
+
+          if (typeof emitter === 'function') {
+            emitter(cursor)
+          } else {
+            emitter.emit(`${dataType}-loaded`, cursor)
+          }
+
           cursor.next_async(null, iter)
         } else {
           cursor.close()
@@ -19,6 +38,7 @@ function scrollCursor (dataType, emitter, cursor) {
 
         loadedCount++
       } catch (error) {
+        logError(error, 'FuckMe')
         cursor.close()
 
         return reject(new Error(`Loading ${dataType} failed.`, error))
@@ -27,6 +47,37 @@ function scrollCursor (dataType, emitter, cursor) {
 
     cursor.next_async(null, iter)
   })
+}
+
+function readSong (cursor) {
+  const GNOME_MUSIC_STARRED = 'http://www.semanticdesktop.org/ontologies/2007/08/15/nao#predefined-tag-favorite'
+  const NAUTILUS_STARRED = 'urn:gnome:nautilus:starred'
+
+  const song = new Song()
+  const tagString = cursor.get_string(0)[0]
+  const tags = tagString ? tagString.split(',') : []
+
+  song.path = cursor.get_string(1)[0]
+  song.artist = cursor.get_string(2)[0]
+  song.album = cursor.get_string(3)[0]
+  song.title = cursor.get_string(4)[0]
+  song.genre = cursor.get_string(5)[0]
+  song.duration = cursor.get_integer(6)
+
+  song.trackNumber = cursor.get_integer(7)
+  song.discNumber = cursor.get_integer(8)
+  song.urn = cursor.get_string(9)[0]
+
+  song.loved = tags.includes(GNOME_MUSIC_STARRED)
+  song.rating = 0
+
+  if (tags.includes(GNOME_MUSIC_STARRED)) {
+    song.rating = 5
+  } else if (tags.includes(NAUTILUS_STARRED)) {
+    song.rating = 3
+  }
+
+  return song
 }
 
 var MusicManager = class MusicManager {
@@ -53,6 +104,10 @@ var MusicManager = class MusicManager {
 
   loadCoverArt (emitter, paths) {
     return this.providers.get('cover-art').loadAll(emitter, paths)
+  }
+
+  saveSong (song) {
+    this.providers.get('song').save(song)
   }
 }
 
@@ -101,11 +156,45 @@ class SongProvider extends Provider {
   constructor () {
     super('song')
 
-    // this.secondaryDb = Gda.Connection.open_sqlite('.', 'foodb', false)
+    this.secondaryDb = Gda.Connection.new_from_string('SQLite', 'DB_DIR=.;DB_NAME=database', null, Gda.ConnectionOptions.NONE)
+
+    Timer.once(this.initialize.bind(this))
+  }
+
+  initialize () {
+    this.secondaryDb.open()
+
+    createDatabase(this.secondaryDb)
   }
 
   loadAll (emitter) {
-    return this._execute(Query.AllSongs, emitter)
+    return this._execute(Query.AllSongs, (cursor) => {
+      const song = readSong(cursor)
+
+      const model = this.secondaryDb.execute_select_command(`
+        SELECT id, score
+        FROM songs
+        WHERE id = '${song.urn}'
+      `)
+
+      if (model.get_n_rows()) {
+        song.rating = model.get_value_at(1, 0) / 20
+      }
+
+      emitter.emit('song-loaded', song)
+    })
+  }
+
+  save (song) {
+    this.secondaryDb.execute_non_select_command(`
+      INSERT INTO songs
+        (id, score)
+      VALUES
+        ('${song.urn}', ${song.rating * 20})
+      ON CONFLICT (id)
+      DO UPDATE SET
+        score = ${song.rating * 20}
+    `)
   }
 }
 

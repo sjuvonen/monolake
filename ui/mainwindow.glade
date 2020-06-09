@@ -461,6 +461,7 @@
                                   <object class="GtkCellRendererPixbuf">
                                     <property name="width">64</property>
                                     <property name="height">64</property>
+                                    <property name="icon_name">media-optical-symbolic</property>
                                     <property name="stock_size">3</property>
                                   </object>
                                   <attributes>

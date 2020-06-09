@@ -10,6 +10,7 @@ var Query = {
       nfo:duration(?song)
       nmm:trackNumber(?song)
       ?discNumber
+      ?song
     WHERE {
       ?song a nmm:MusicPiece;
 

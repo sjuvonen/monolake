@@ -35,49 +35,6 @@ class Album {
   }
 }
 
-class Song {
-  constructor (path) {
-    this.path = path || null
-    this.trackNumber = null
-    this.discNumber = null
-    this.title = null
-    this.artist = null
-    this.album = null
-    this.genre = null
-
-    this.artistRef = null
-    this.albumRef = null
-  }
-
-  get coverArt () {
-    if (this.albumRef && this.albumRef.coverArt) {
-      return this.albumRef.coverArt.uri
-    } else {
-      return null
-    }
-  }
-
-  get coverArtPixbuf () {
-    if (this.albumRef && this.albumRef.coverArt) {
-      return this.albumRef.coverArt.pixbuf
-    } else {
-      return null
-    }
-  }
-
-  get albumTitle () {
-    return this.albumRef ? this.albumRef.title : null
-  }
-
-  get artistName () {
-    return this.artistRef ? this.artistRef.name : null
-  }
-
-  get albumTrackCount () {
-    return this.albumRef ? this.albumRef.trackCount : null
-  }
-}
-
 function readArtist (cursor) {
   const artist = new Artist()
 
@@ -95,36 +52,6 @@ function readAlbum (cursor) {
   album.trackCount = cursor.get_integer(2)
 
   return album
-}
-
-function readSong (cursor) {
-  const GNOME_MUSIC_STARRED = 'http://www.semanticdesktop.org/ontologies/2007/08/15/nao#predefined-tag-favorite'
-  const NAUTILUS_STARRED = 'urn:gnome:nautilus:starred'
-
-  const song = new Song()
-  const tagString = cursor.get_string(0)[0]
-  const tags = tagString ? tagString.split(',') : []
-
-  song.path = cursor.get_string(1)[0]
-  song.artist = cursor.get_string(2)[0]
-  song.album = cursor.get_string(3)[0]
-  song.title = cursor.get_string(4)[0]
-  song.genre = cursor.get_string(5)[0]
-  song.duration = cursor.get_integer(6)
-
-  song.trackNumber = cursor.get_integer(7)
-  song.discNumber = cursor.get_integer(8)
-
-  song.loved = tags.includes(GNOME_MUSIC_STARRED)
-  song.rating = 0
-
-  if (tags.includes(GNOME_MUSIC_STARRED)) {
-    song.rating = 5
-  } else if (tags.includes(NAUTILUS_STARRED)) {
-    song.rating = 3
-  }
-
-  return song
 }
 
 var Collection = class Collection {
@@ -194,9 +121,7 @@ var Collection = class Collection {
     this.events.emit('album-added', album)
   }
 
-  _onSongLoaded (sender, cursor) {
-    const song = readSong(cursor)
-
+  _onSongLoaded (sender, song) {
     song.id = this.counter++
     song.artistRef = this.artistsMap.get(song.artist)
     song.albumRef = this.albumsMap.get(song.album)
@@ -270,6 +195,7 @@ var Collection = class Collection {
   }
 
   update (song) {
+    this.store.saveSong(song)
     this.events.emit('song-updated', song)
   }
 }
