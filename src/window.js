@@ -16,9 +16,21 @@ class PlaybackOptions {
 }
 
 var MainWindow = class MainWindow {
-  constructor (window, builder, player) {
+  constructor (window, builder, player, state) {
+    if (state.get('width')) {
+      window.resize(state.get('width'), state.get('height'))
+
+      if (state.get('maximized')) {
+        window.maximize()
+
+        state.set('reset_size_after_unmaximize', true)
+      }
+    }
+
     this._window = window
     this._builder = builder
+    this._state = state
+
     this.player = player
     this.playbackOptions = new PlaybackOptions()
 
@@ -278,6 +290,22 @@ var MainWindow = class MainWindow {
     const sortMode = this.ui.modelSortingOptions.get_value(iter, 0)
 
     this.collectionMasterModel.sortBy(sortMode)
+  }
+
+  onWindowResize () {
+    const [width, height] = this._window.get_size()
+
+    this._state.set('maximized', this._window.is_maximized)
+
+    if (!this._window.is_maximized) {
+      this._state.set('width', width)
+      this._state.set('height', height)
+    }
+
+    if (this._window.is_maximized && this._state.has('reset_size_after_unmaximize')) {
+      this._window.resize(this._state.get('width'), this._state.get('height'))
+      this._state.delete('reset_size_after_unmaximize')
+    }
   }
 
   _onSongChanged (sender, song) {

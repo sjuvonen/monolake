@@ -59,6 +59,7 @@
     <property name="gravity">north-east</property>
     <property name="has_resize_grip">True</property>
     <property name="startup_id">fi.juvonet.Monolake</property>
+    <signal name="size-allocate" handler="onWindowResize" swapped="no"/>
     <child>
       <object class="GtkBox">
         <property name="visible">True</property>

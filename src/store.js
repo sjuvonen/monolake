@@ -156,7 +156,7 @@ class SongProvider extends Provider {
   constructor () {
     super('song')
 
-    this.secondaryDb = Gda.Connection.new_from_string('SQLite', 'DB_DIR=.;DB_NAME=database', null, Gda.ConnectionOptions.NONE)
+    this.secondaryDb = Gda.Connection.new_from_string('SQLite', 'DB_DIR=tmp;DB_NAME=database', null, Gda.ConnectionOptions.NONE)
 
     Timer.once(this.initialize.bind(this))
   }
