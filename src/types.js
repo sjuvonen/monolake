@@ -7,7 +7,8 @@ var Song = class Song {
     this.artist = null
     this.album = null
     this.genre = null
-
+    this.rating = null
+    
     this.artistRef = null
     this.albumRef = null
   }

@@ -168,32 +168,55 @@ class SongProvider extends Provider {
   }
 
   loadAll (emitter) {
-    return this._execute(Query.AllSongs, (cursor) => {
-      const song = readSong(cursor)
+    try {
+      const preloaded = this._preloadAddedData()
 
-      const model = this.secondaryDb.execute_select_command(`
-        SELECT id, score
-        FROM songs
-        WHERE id = '${song.urn}'
-      `)
+      return this._execute(Query.AllSongs, (cursor) => {
+        const song = readSong(cursor)
 
-      if (model.get_n_rows()) {
-        song.rating = model.get_value_at(1, 0) / 20
-      }
+        if (preloaded.has(song.urn)) {
+          const values = preloaded.get(song.urn)
 
-      emitter.emit('song-loaded', song)
-    })
+          song.rating = values.rating
+        }
+
+        emitter.emit('song-loaded', song)
+      })
+    } catch (error) {
+      logError(error, 'SongDataLoadError')
+    }
+  }
+
+  _preloadAddedData () {
+    const model = this.secondaryDb.execute_select_command(`
+      SELECT id, score
+      FROM songs
+    `)
+
+    const values = new Map()
+
+    for (let i = 0; i < model.get_n_rows(); i++) {
+      const sid = model.get_value_at(0, i)
+
+      values.set(sid, {
+        rating: model.get_value_at(1, i) / 20,
+      })
+    }
+
+    return values
   }
 
   save (song) {
+    const score = song.rating * 20
+
     this.secondaryDb.execute_non_select_command(`
       INSERT INTO songs
         (id, score)
       VALUES
-        ('${song.urn}', ${song.rating * 20})
+        ('${song.urn}', ${score})
       ON CONFLICT (id)
       DO UPDATE SET
-        score = ${song.rating * 20}
+        score = ${score}
     `)
   }
 }

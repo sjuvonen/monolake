@@ -258,7 +258,7 @@ var CollectionModel = GObject.registerClass(class CollectionModel extends Gtk.Li
 
     const values = new Map([
       [CollectionRoles.Id, song.id],
-      [CollectionRoles.Title, song.title + ' ' + (song.coverArt ? 'OK' : '')],
+      [CollectionRoles.Title, song.title],
       [CollectionRoles.Artist, artistAndAlbum],
       [CollectionRoles.Duration, formatProgressTime(song.duration)],
       [CollectionRoles.Rating, formatStars(song.rating)],
