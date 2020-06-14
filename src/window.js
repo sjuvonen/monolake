@@ -93,8 +93,6 @@ var MainWindow = class MainWindow {
     this.player.events.connect('duration-changed', this._onDurationChanged.bind(this))
     this.player.events.connect('progress-changed', this._onProgressChanged.bind(this))
 
-    this._settings.connect('changed', this._onSettingsChange.bind(this))
-
     const menu = new Gio.Menu()
     menu.append('Preferences', 'app.preferences')
     menu.append('About Monolake', 'app.about')
@@ -103,6 +101,8 @@ var MainWindow = class MainWindow {
   }
 
   async setup () {
+    this.setupSettingsObservers()
+
     this.collectionMasterModel = new CollectionMasterModel({ collection: this.collection })
 
     await this.collection.load()
@@ -251,9 +251,7 @@ var MainWindow = class MainWindow {
     this.ui.labelSecondProgress.set_text('-' + utils.formatProgressTime(timeLeft))
   }
 
-  _onSettingsChange (sender, key) {
-    log('SETTINGS CHANGED ' + this._settings.get_value(key))
-
+  setupSettingsObservers (sender, key) {
     const buttons = new Map([
       ['queue-open', 'buttonToggleQueueSidebar'],
       ['repeat', 'buttonRepeat'],
@@ -261,12 +259,32 @@ var MainWindow = class MainWindow {
       ['shuffle', 'buttonShuffle'],
     ])
 
-    if (buttons.has(key)) {
-      const buttonName = buttons.get(key)
+    /**
+     * Listen to settings backend and update bound buttons.
+     */
+    this._settings.connect('changed', (sender, settingName) => {
+      if (buttons.has(settingName)) {
+        const buttonName = buttons.get(settingName)
+        const button = this._builder.get_object(buttonName)
+
+        if (button) {
+          button.set_active(this._settings.get_boolean(settingName))
+        }
+      }
+    })
+
+    /**
+     * Listen to buttons and update settings backend.
+     *
+     * Will also apply persisted configuration to UI buttons.
+     */
+    for (const [settingName, buttonName] of buttons) {
       const button = this._builder.get_object(buttonName)
 
       if (button) {
-        button.set_active(this._settings.get_boolean(key))
+        button.connect('toggled', () => this._settings.set_boolean(settingName, button.get_active()))
+
+        button.set_active(this._settings.get_boolean(settingName))
       }
     }
   }
