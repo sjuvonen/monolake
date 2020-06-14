@@ -3,7 +3,6 @@ const { MainWindow } = imports.window
 const { Player } = imports.player
 
 const UI_TEMPLATE_PATH = '/home/samu/Projects/experimental/gnome/monolake/ui/mainwindow.glade'
-const SETTINGS_SCHEMA_PATH = '/home/samu/Projects/experimental/gnome/monolake/data/'
 
 function openAboutDialog () {
   log('SHOW ABOUT DIALOG')
@@ -56,7 +55,7 @@ function main (argv) {
 
   const appWindow = builder.get_object('mainWindow')
   const player = new Player()
-  // const settings = Gio.Settings.new_with_path('fi.juvonet.monolake')
+  const settings = Gio.Settings.new('fi.juvonet.monolake')
 
   application.connect('startup', () => {
     const actionQuit = new Gio.SimpleAction({ name: 'quit' })
@@ -87,7 +86,7 @@ function main (argv) {
 
     restoreMainWindowState(mainWindowState)
 
-    const window = new MainWindow(appWindow, builder, player, mainWindowState)
+    const window = new MainWindow(appWindow, builder, player, settings, mainWindowState)
     window.setup()
 
     appWindow.connect('destroy', () => player.stop())

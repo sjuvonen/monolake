@@ -16,13 +16,21 @@ class PlaybackOptions {
 }
 
 var MainWindow = class MainWindow {
-  constructor (window, builder, player, state) {
+  constructor (window, builder, player, settings, state) {
     if (state.get('width')) {
       window.resize(state.get('width'), state.get('height'))
 
       if (state.get('maximized')) {
         window.maximize()
 
+        /**
+         * When a window is maximized before being displayed, it seems that itss
+         * initial size is discarded and window will therefore be restored with
+         * a different size.
+         *
+         * This flag indicates that persisted geometry should be restored whem
+         * the window is unmaximized  for the first time.
+         */
         state.set('reset_size_after_unmaximize', true)
       }
     }
@@ -30,6 +38,7 @@ var MainWindow = class MainWindow {
     this._window = window
     this._builder = builder
     this._state = state
+    this._settings = settings
 
     this.player = player
     this.playbackOptions = new PlaybackOptions()
@@ -83,6 +92,8 @@ var MainWindow = class MainWindow {
     this.player.events.connect('playback-stopped', this._onPlaybackStopped.bind(this))
     this.player.events.connect('duration-changed', this._onDurationChanged.bind(this))
     this.player.events.connect('progress-changed', this._onProgressChanged.bind(this))
+
+    this._settings.connect('changed', this._onSettingsChange.bind(this))
 
     const menu = new Gio.Menu()
     menu.append('Preferences', 'app.preferences')
@@ -238,6 +249,26 @@ var MainWindow = class MainWindow {
 
     this.ui.labelFirstProgress.set_text(utils.formatProgressTime(timeGone))
     this.ui.labelSecondProgress.set_text('-' + utils.formatProgressTime(timeLeft))
+  }
+
+  _onSettingsChange (sender, key) {
+    log('SETTINGS CHANGED ' + this._settings.get_value(key))
+
+    const buttons = new Map([
+      ['queue-open', 'buttonToggleQueueSidebar'],
+      ['repeat', 'buttonRepeat'],
+      ['search-mode', 'buttonToggleSearchBar'],
+      ['shuffle', 'buttonShuffle'],
+    ])
+
+    if (buttons.has(key)) {
+      const buttonName = buttons.get(key)
+      const button = this._builder.get_object(buttonName)
+
+      if (button) {
+        button.set_active(this._settings.get_boolean(key))
+      }
+    }
   }
 
   onSeekerAdjustBounds (seeker, value) {

@@ -180,7 +180,7 @@
                 <property name="hexpand">True</property>
                 <property name="spacing">7</property>
                 <child>
-                  <object class="GtkToggleButton">
+                  <object class="GtkToggleButton" id="buttonToggleQueueSidebar">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
