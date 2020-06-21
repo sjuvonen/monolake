@@ -215,7 +215,7 @@ var MainWindow = class MainWindow {
   }
 
   onClickPlayNext (button) {
-    this.playlistManager.next(true)
+    this.playlistManager.next()
   }
 
   _onPlaybackStarted () {
@@ -404,6 +404,10 @@ class PlaylistManager {
     this.player.events.connect('song-changed', this._onSongChanged.bind(this))
   }
 
+  playOrPause () {
+    this.player.playing ? this.player.pause() : this.player.play()
+  }
+
   previous () {
     if (this.collection.hasPrevious()) {
       const iter = this.collection.select(this.collection.getPrevious())
@@ -418,7 +422,7 @@ class PlaylistManager {
     this.player.stop()
   }
 
-  next (startPlayback = false) {
+  next (startPlayback = true) {
     let song = null
 
     if (this.queue.hasNext()) {
@@ -450,7 +454,7 @@ class PlaylistManager {
   }
 
   _onNeedNextSong () {
-    this.next()
+    this.next(false)
   }
 
   _onSongChanged (sender, path) {

@@ -1,6 +1,7 @@
 const { Gio, GLib, GObject, Gst, Gtk } = imports.gi
 const { MainWindow } = imports.window
 const { Player } = imports.player
+const { RemoteControls } = imports.mpris
 
 const UI_TEMPLATE_PATH = '/home/samu/Projects/experimental/gnome/monolake/ui/mainwindow.glade'
 
@@ -80,20 +81,23 @@ function main (argv) {
     application.add_accelerator('<Primary>q', 'app.quit', null)
   })
 
-  application.connect('activate', () => {
+  application.connect('activate', async () => {
     appWindow.set_application(application)
     appWindow.present()
 
     restoreMainWindowState(mainWindowState)
 
     const window = new MainWindow(appWindow, builder, player, settings, mainWindowState)
-    window.setup()
+    await window.setup()
+
+    const mpris = new RemoteControls(application, window.playlistManager)
 
     appWindow.connect('destroy', () => player.stop())
     appWindow.connect('destroy', () => application.quit())
 
     // Prevents garbage collection from destroying our app ;)
     application.antiGcWindowRef = window
+    application.antiGcMpris = mpris
   })
 
   appWindow.connect('destroy', () => {
