@@ -14,6 +14,7 @@ imports.package.require({
   GLib: '2.0',
   Gst: '1.0',
   Gtk: '3.0',
+  Tracker: '2.0'
 })
 
 // imports.package.initGettext()
