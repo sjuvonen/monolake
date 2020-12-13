@@ -54,6 +54,7 @@ var Player = class Player {
     this.backend = Gst.parse_launch('playbin name=player sink=dconfaudiosink')
     // this.backend = Gst.ElementFactory.make('playbin', null)
 
+
     if (this.backend) {
       this.backend.get_bus().connect('message', this._onMessage.bind(this))
       this.backend.get_bus().add_signal_watch()
@@ -77,20 +78,34 @@ var Player = class Player {
 
       this.events.emit('song-changed', uri)
 
+      var retryCount = 0
+
       /**
-       * For some media types, as well as the first song after boot, native event
-       * Gst.MessageType.DURATION_CHANGED is not emitted, so this is our simple
-       * fallback method.
-       */
-      Timer.once(100, () => {
+      * For some media types, as well as the first song after boot, native event
+      * Gst.MessageType.DURATION_CHANGED is not emitted, so this is our simple
+      * fallback method.
+      */
+      Timer.until(150, () => {
+        /**
+         * For some reason, for some media files, querying for duration will fail
+         * until around 500 ms of playback.
+         */
+        if (retryCount++ > 5 || this._lastCachedDuration > 0) {
+          return false
+        }
+
         const [ok, duration] = this.backend.query_duration(Gst.Format.TIME)
 
         if (ok) {
           this._cachedLastDuration = Math.ceil(duration / Math.pow(10, 6))
           this.events.emit('duration-changed', duration / Math.pow(10, 6))
+
+          return false
         } else {
           this._cachedLastDuration = null
           this.events.emit('duration-changed', null)
+
+          return true
         }
       })
 
@@ -101,12 +116,14 @@ var Player = class Player {
           const msPos = Math.ceil(position / Math.pow(10, 6))
           this.events.emit('progress-changed', msPos)
 
-          /**
-           * FIXME: Connecting to playbin::about-to-finish crashes the whole app,
-           * so we need our own workaround.
-           */
-          if (this.lastCachedDuration() - msPos < PROGRESS_REPORT_INTERVAL) {
-            this.events.emit('need-next-song')
+          if (this.lastCachedDuration() !== null) {
+            /**
+            * FIXME: Connecting to playbin::about-to-finish crashes the whole app,
+            * so we need our own workaround.
+            */
+            if (this.lastCachedDuration() - msPos < PROGRESS_REPORT_INTERVAL) {
+              this.events.emit('need-next-song')
+            }
           }
         }
       })
